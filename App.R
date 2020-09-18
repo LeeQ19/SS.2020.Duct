@@ -305,8 +305,10 @@ server <- function(input, output, session) {
     memory$search.sheet <- cbind(read.xlsx2(input$search.upload$datapath, sheetIndex = 1, stringsAsFactors = FALSE, colClasses = NA) %>% match_class(search.data[[length(search.data)]]), 
                                  연도 = as.integer(unlist(strsplit(filename[1], "-"))[1]), 현장 = filename[2], 협력사 = filename[3], 계약번호 = filename[1], 계약여부 = filename[4])
     id.na <- which(is.na(memory$search.sheet$대분류))
-    memory$search.sheet <- rbind(memory$search.sheet[id.na, ], memory$search.sheet[-id.na, ])
-    row.names(memory$search.sheet) <- 1:nrow(memory$search.sheet)
+    if (length(id.na) > 0) {
+      memory$search.sheet <- rbind(memory$search.sheet[id.na, ], memory$search.sheet[-id.na, ])
+      row.names(memory$search.sheet) <- 1:nrow(memory$search.sheet)
+    }
     
     if (any(is.na(memory$search.sheet$대분류)))
       shinyalert(title = "확인되지 않은 품목이 존재합니다!", text = input$search.upload$name, type = "warning", closeOnClickOutside = TRUE, confirmButtonText = "확인")
