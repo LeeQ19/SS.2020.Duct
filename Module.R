@@ -28,10 +28,20 @@ make_table <- function (data, labels, selected) {
 }
 
 # Declare function to match classes of product by name and standard
-match_class <- function (sheet, data) {
+match_class <- function (sheet, data, options = NULL) {
+  if (!is.null(options)) {
+    data <- data[data$연도 >= options$year[1] & data$연도 <= options$year[2], ]
+    if (!is.null(options$sign) && options$sign) 
+      data <- data[data$계약여부 == "계약", ]
+    if (!is.null(options$site)) 
+      data <- data[data$현장 %in% options$site, ]
+    if (!is.null(options$coop)) 
+      data <- data[data$협력사 %in% options$coop, ]
+  }
+  names <- gsub("[[:blank:][:punct:]]", "", sheet$품명)
   sheet.class <- c()
   for (i in 1:nrow(sheet)) {
-    temp <- data[data$품명 == sheet[i, ]$품명, ]$대분류
+    temp <- data[data$품명 == names[i], ]$대분류
     sheet.class <- c(sheet.class, temp[1])
   }
   return(cbind(대분류 = sheet.class, sheet))
@@ -40,7 +50,7 @@ match_class <- function (sheet, data) {
 # Declare function to make stat by matching with data
 make_stat <- function (sheet, data, options = NULL) {
   if (!is.null(options)) {
-    data <- data[data$연도 >= options$year[1] && data$연도 <= options$year[2], ]
+    data <- data[data$연도 >= options$year[1] & data$연도 <= options$year[2], ]
     if (!is.null(options$sign) && options$sign) 
       data <- data[data$계약여부 == "계약", ]
     if (!is.null(options$site)) 
@@ -48,11 +58,11 @@ make_stat <- function (sheet, data, options = NULL) {
     if (!is.null(options$coop)) 
       data <- data[data$협력사 %in% options$coop, ]
   }
-  stat <- cbind(sheet[, c(1:3, 6)], data.frame(최저가 = NA, 평균가 = NA, 중간가 = NA, 최고가 = NA))
+  stat <- cbind(sheet[, c(1:3, 6)], data.frame(최저가 = NA, 평균가 = NA, 중간가 = NA, 최고가 = NA, 가격차이 = NA))
   for (i in 1:nrow(stat)) {
-    temp <- na.omit(as.numeric(data[data$대분류 == stat[i, ]$대분류 & data$규격 == stat[i, ]$규격, ]$자재비))
+    temp <- na.omit(as.numeric(data[data$대분류 == stat[i, ]$대분류 & data$규격 == stat[i, ]$규격, ]$자재비.단가))
     if (length(temp) > 0)
-      stat[i, 5:8] <- round(c(min(temp), mean(temp), median(temp), max(temp)))
+      stat[i, 5:9] <- round(c(min(temp), mean(temp), median(temp), max(temp), as.integer(stat$자재비.단가[i]) - median(temp)))
   }
   return(stat)
 }
