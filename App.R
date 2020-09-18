@@ -2,14 +2,15 @@
 ### Set up environment
 #########################################################################################################################
 # Load library
+library("dplyr")
+library("DT")
+library("pdftools")
 library("shiny")
 library("shinydashboard")
 library("shinyWidgets")
 library("shinyjs")
 library("shinyalert")
-library("DT")
 library("xlsx")
-library("pdftools")
 options(shiny.maxRequestSize = 30*1024^2)
 
 # Load function
@@ -243,7 +244,7 @@ server <- function(input, output, session) {
     replaceData(memory$search.table.proxy, memory$search.table, resetPaging = FALSE)
     
     # Replace data
-    search.edit.temp$row <- as.integer(row.names(memory$search.table)[search.edit.temp$row])
+    search.edit.temp$row <- as.integer(rownames(memory$search.table)[search.edit.temp$row])
     if (search.edit.temp$col >= 2) search.edit.temp$col <- search.edit.temp$col + 1
     memory$search.data[search.edit.temp$row, search.edit.temp$col] <- DT::coerceValue(search.edit.temp$value, memory$search.data[search.edit.temp$row, search.edit.temp$col])
     
@@ -302,12 +303,13 @@ server <- function(input, output, session) {
     disable("search.update")
     
     filename <- unlist(strsplit(gsub(".xlsx", "", input$search.upload$name), "_"))
-    memory$search.sheet <- cbind(read.xlsx2(input$search.upload$datapath, sheetIndex = 1, stringsAsFactors = FALSE, colClasses = NA) %>% match_class(search.data[[length(search.data)]]), 
+    memory$search.sheet <- cbind(read.xlsx2(input$search.upload$datapath, sheetIndex = 1, stringsAsFactors = FALSE, colClasses = NA) 
+                                 %>% select_if(names(.) %in% colnames(search.data[[length(search.data)]])) %>% match_class(search.data[[length(search.data)]]), 
                                  연도 = as.integer(unlist(strsplit(filename[1], "-"))[1]), 현장 = filename[2], 협력사 = filename[3], 계약번호 = filename[1], 계약여부 = filename[4])
     id.na <- which(is.na(memory$search.sheet$대분류))
     if (length(id.na) > 0) {
       memory$search.sheet <- rbind(memory$search.sheet[id.na, ], memory$search.sheet[-id.na, ])
-      row.names(memory$search.sheet) <- 1:nrow(memory$search.sheet)
+      rownames(memory$search.sheet) <- 1:nrow(memory$search.sheet)
     }
     
     if (any(is.na(memory$search.sheet$대분류)))
