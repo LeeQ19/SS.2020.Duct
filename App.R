@@ -41,9 +41,9 @@ ui <- dashboardPage(
       menuItem("기계약 검색", tabName = "search", icon = icon("search")), 
       menuItem("입찰 분석",   tabName = "bid",    icon = icon("chart-bar")), 
       menuItem("기계약 분석", tabName = "cntrt",  icon = icon("dashboard")), 
-      menuItem("품샘 정보",   tabName = "labor",  icon = icon("file-invoice"))
+      menuItem("품셈 정보",   tabName = "labor",  icon = icon("file-invoice"))
     ), 
-    tags$footer("ver 2.5.0", align = "right", style = "font-size: 15px; position:absolute; bottom:0; width:100%; padding:10px")
+    tags$footer("ver 2.6.0", align = "right", style = "font-size: 15px; position:absolute; bottom:0; width:100%; padding:10px")
   ), 
   
   #########################################################
@@ -229,7 +229,7 @@ server <- function(input, output, session) {
     # Render table
     output$search.table <- DT::renderDataTable(datatable(isolate(memory$search.table), extensions = "FixedHeader", editable = list(target = "cell", disable = list(columns = c(0))), 
                                                          options = list(fixedHeader = TRUE, lengthMenu = list(c(10, 25, 50, 100, -1), c("10", "25", "50", "100", "전체")), pageLength = 10))
-                                               %>% formatCurrency(c("자재비", "노무비", "경비"), currency = ' ￦', interval = 3, mark = ',', digit = 0, before = FALSE))
+                                               %>% formatCurrency(c("자재비.단가", "노무비.단가", "경비.단가"), currency = ' ￦', interval = 3, mark = ',', digit = 0, before = FALSE))
     memory$search.table.proxy <- dataTableProxy("search.table")
   })
   
@@ -238,16 +238,14 @@ server <- function(input, output, session) {
     disable("search.download")
     
     # Reload table
-    search.edit.temp <- list(i = input$search.table_cell_edit$row, 
-                             j = input$search.table_cell_edit$col, 
-                             v = input$search.table_cell_edit$value)
-    memory$search.table[search.edit.temp$i, search.edit.temp$j] <- DT::coerceValue(search.edit.temp$v, memory$search.table[search.edit.temp$i, search.edit.temp$j])
+    search.edit.temp <- input$search.table_cell_edit
+    memory$search.table[search.edit.temp$row, search.edit.temp$col] <- DT::coerceValue(search.edit.temp$value, memory$search.table[search.edit.temp$row, search.edit.temp$col])
     replaceData(memory$search.table.proxy, memory$search.table, resetPaging = FALSE)
     
     # Replace data
-    search.edit.temp$i <- as.integer(row.names(memory$search.table)[search.edit.temp$i])
-    if (search.edit.temp$j >= 2) search.edit.temp$j <- search.edit.temp$j + 1
-    memory$search.data[search.edit.temp$i, search.edit.temp$j] <- DT::coerceValue(search.edit.temp$v, memory$search.data[search.edit.temp$i, search.edit.temp$j])
+    search.edit.temp$row <- as.integer(row.names(memory$search.table)[search.edit.temp$row])
+    if (search.edit.temp$col >= 2) search.edit.temp$col <- search.edit.temp$col + 1
+    memory$search.data[search.edit.temp$row, search.edit.temp$col] <- DT::coerceValue(search.edit.temp$value, memory$search.data[search.edit.temp$row, search.edit.temp$col])
     
     enable("search.save")
     enable("search.discard")
@@ -255,20 +253,25 @@ server <- function(input, output, session) {
   
   # Edit archive - display popup message
   observeEvent(input$search.save, {
-    shinyalert(title = "수정내용을 저장하시겠습니까?", type = "warning", closeOnClickOutside = TRUE, showCancelButton = TRUE, 
+    shinyalert(title = "수정내용을 저장하시겠습니까?", text = "데이터 이름 입력", type = "input", closeOnClickOutside = TRUE, showCancelButton = TRUE, 
+               inputType = "text", inputValue = format(Sys.time(), tz = "Asia/Seoul"), inputPlaceholder = "데이터 이름", 
                confirmButtonText = "확인", cancelButtonText = "취소", callbackR = function (x) memory$response$search.save <- x)
   })
   
   # Edit archive - confirm
   observeEvent(memory$response$search.save, {
-    if (memory$response$search.save) {
-      memory$response$search.save <- FALSE
-      search.data[[format(Sys.time(), tz = "Asia/Seoul")]] <<- memory$search.data
+    if (!is.null(memory$response$search.save)) {
+      if (memory$response$search.save == "")
+        memory$response$search.save <- format(Sys.time(), tz = "Asia/Seoul")
+      search.data[[memory$response$search.save]] <<- memory$search.data
       saveRDS(search.data, file = "DB/search.data.rds")
+      
       updateSelectInput(session, inputId = "search.index", choices = rev(names(search.data)), selected = rev(names(search.data))[1])
       enable("search.remove")
       disable("search.save")
       disable("search.discard")
+      
+      memory$response$search.save <- NULL
       shinyalert(title = "수정내용이 저장되었습니다.", text = rev(names(search.data))[1], type = "success", closeOnClickOutside = TRUE, confirmButtonText = "확인")
     }
   })
@@ -282,12 +285,14 @@ server <- function(input, output, session) {
   # Discard edited contents - confirm
   observeEvent(memory$response$search.discard, {
     if (memory$response$search.discard) {
-      memory$response$search.discard <- FALSE
       memory$search.data <- search.data[[input$search.index]]
       memory$search.table <- make_table(memory$search.data[-c(2)], search.labels, memory$search.old$selected)
       replaceData(memory$search.table.proxy, memory$search.table, resetPaging = FALSE)
+      
       disable("search.save")
       disable("search.discard")
+      
+      memory$response$search.discard <- FALSE
       shinyalert(title = "수정내용이 초기화되었습니다.", text = rev(names(search.data))[1], type = "success", closeOnClickOutside = TRUE, confirmButtonText = "확인")
     }
   })
@@ -295,10 +300,23 @@ server <- function(input, output, session) {
   # Upload new sheet
   observeEvent(input$search.upload, {
     disable("search.update")
-    memory$search.sheet <- read.xlsx2(input$search.upload$datapath, sheetIndex = 1, stringsAsFactors = FALSE, colClasses = NA)
+    
+    filename <- unlist(strsplit(gsub(".xlsx", "", input$search.upload$name), "_"))
+    memory$search.sheet <- cbind(read.xlsx2(input$search.upload$datapath, sheetIndex = 1, stringsAsFactors = FALSE, colClasses = NA) %>% match_class(search.data[[length(search.data)]]), 
+                                 연도 = as.integer(unlist(strsplit(filename[1], "-"))[1]), 현장 = filename[2], 협력사 = filename[3], 계약번호 = filename[1], 계약여부 = filename[4])
+    id.na <- which(is.na(memory$search.sheet$대분류))
+    memory$search.sheet <- rbind(memory$search.sheet[id.na, ], memory$search.sheet[-id.na, ])
+    row.names(memory$search.sheet) <- 1:nrow(memory$search.sheet)
+    
+    if (any(is.na(memory$search.sheet$대분류)))
+      shinyalert(title = "확인되지 않은 품목이 존재합니다!", text = input$search.upload$name, type = "warning", closeOnClickOutside = TRUE, confirmButtonText = "확인")
+    
     output$search.sheet <- DT::renderDataTable(datatable(isolate(memory$search.sheet), extensions = "FixedHeader", editable = list(target = "cell", disable = list(columns = c(0))), 
                                                          options = list(fixedHeader = TRUE, pageLength = -1, dom = "tir"))
-                                               %>% formatCurrency(c("자재비", "노무비", "경비"), currency = ' ￦', interval = 3, mark = ',', digit = 0, before = FALSE))
+                                               %>% formatCurrency(c("자재비.단가", "노무비.단가", "경비.단가"), currency = ' ￦', interval = 3, mark = ',', digit = 0, before = FALSE)
+                                               %>% formatStyle("대분류", target = "row", backgroundColor = styleEqual(c(NA, ""), rep("yellow", 2))))
+    memory$search.sheet.proxy <- dataTableProxy("search.sheet")
+    
     enable("search.update")
     enable("search.reset")
   })
@@ -309,10 +327,11 @@ server <- function(input, output, session) {
     disable("search.reset")
     
     # Replace sheet
-    search.edit.temp <- list(i = input$search.sheet_cell_edit$row, 
-                             j = input$search.sheet_cell_edit$col, 
-                             v = input$search.sheet_cell_edit$value)
-    memory$search.sheet[search.edit.temp$i, search.edit.temp$j] <- DT::coerceValue(search.edit.temp$v, memory$search.sheet[search.edit.temp$i, search.edit.temp$j])
+    search.edit.temp <- input$search.sheet_cell_edit
+    memory$search.sheet[search.edit.temp$row, search.edit.temp$col] <- DT::coerceValue(search.edit.temp$value, memory$search.sheet[search.edit.temp$row, search.edit.temp$col])
+    if (search.edit.temp$col == 2)
+      memory$search.sheet[search.edit.temp$row, ] <- match_class(memory$search.sheet[search.edit.temp$row, -c(1)], search.data[[length(search.data)]])
+    replaceData(memory$search.sheet.proxy, memory$search.sheet, resetPaging = FALSE)
     
     enable("search.update")
     enable("search.reset")
@@ -320,17 +339,21 @@ server <- function(input, output, session) {
   
   # Update archive - display popup message
   observeEvent(input$search.update, {
-    shinyalert(title = "데이터를 추가하시겠습니까?", text = input$search.upload$name, type = "warning", closeOnClickOutside = TRUE, showCancelButton = TRUE, 
+    shinyalert(title = "데이터를 추가하시겠습니까?", text = "데이터 이름 입력", type = "input", closeOnClickOutside = TRUE, showCancelButton = TRUE, 
+               inputType = "text", inputValue = format(Sys.time(), tz = "Asia/Seoul"), inputPlaceholder = "데이터 이름", 
                confirmButtonText = "확인", cancelButtonText = "취소", callbackR = function (x) memory$response$search.update <- x)
   })
   
   # Update archive - confirm
   observeEvent(memory$response$search.update, {
-    if (memory$response$search.update) {
-      memory$response$search.update <- FALSE
-      memory$search.sheet <- rbind(memory$search.sheet, search.data[[input$search.index]])
-      search.data[[format(Sys.time(), tz = "Asia/Seoul")]] <<- memory$search.sheet
+    if (!is.null(memory$response$search.update)) {
+      if (memory$response$search.update == "")
+        memory$response$search.update <- format(Sys.time(), tz = "Asia/Seoul")
+      memory$search.sheet$품명 <- gsub("[[:blank:][:punct:]]", "", memory$search.sheet$품명)
+      memory$search.sheet <- rbind(memory$search.sheet, search.data[[length(search.data)]])
+      search.data[[memory$response$search.update]] <<- memory$search.sheet
       saveRDS(search.data, file = "DB/search.data.rds")
+      
       updateSelectInput(session, inputId = "search.index", choices = rev(names(search.data)), selected = rev(names(search.data))[1])
       memory$search.sheet <- NULL
       output$search.sheet <- NULL
@@ -338,6 +361,8 @@ server <- function(input, output, session) {
       enable("search.remove")
       disable("search.update")
       disable("search.reset")
+      
+      memory$response$search.update <- NULL
       shinyalert(title = "데이터가 추가되었습니다.", text = rev(names(search.data))[1], type = "success", closeOnClickOutside = TRUE, confirmButtonText = "확인")
     }
   })
@@ -351,12 +376,12 @@ server <- function(input, output, session) {
   # Reset uploaded data - confirm
   observeEvent(memory$response$search.reset, {
     if (memory$response$search.reset) {
-      memory$response$search.reset <- FALSE
       memory$search.sheet <- NULL
       output$search.sheet <- NULL
       reset("search.upload")
       disable("search.update")
       disable("search.reset")
+      memory$response$search.reset <- FALSE
     }
   })
   
@@ -380,12 +405,14 @@ server <- function(input, output, session) {
   # Remove data - confirm
   observeEvent(memory$response$search.remove, {
     if (memory$response$search.remove) {
-      memory$response$search.remove <- FALSE
       search.data[input$search.index] <<- NULL
       saveRDS(search.data, file = "DB/search.data.rds")
+      
       updateSelectInput(session, inputId = "search.index", choices = rev(names(search.data)), selected = rev(names(search.data))[1])
       if (length(search.data) == 1) 
         disable("search.remove")
+      
+      memory$response$search.remove <- FALSE
       shinyalert(title = "데이터가 삭제되었습니다.", text = input$search.index, type = "success", closeOnClickOutside = TRUE, confirmButtonText = "확인")
     }
   })
@@ -394,28 +421,28 @@ server <- function(input, output, session) {
   ### Contract tab
   #########################################################
   # Download example sheet
-  output$cntrt.example <- downloadHandler(filename = paste0("계약서_예시", ".xlsx"), content = function(file) write.xlsx2(readRDS("DB/cntrt.example.rds"), file, row.names = FALSE))
+  output$cntrt.example <- downloadHandler(filename = paste0("2019-5-1808_동우화인켐 평택_세현이엔지_계약", ".xlsx"), content = function(file) write.xlsx2(readRDS("DB/cntrt.example.rds"), file, row.names = FALSE))
   
   # Analyze
   observeEvent(input$cntrt.sheet, {
     disable("cntrt.download")
     
     # Read uploaded sheet
-    memory$cntrt.sheet <- read.xlsx2(input$cntrt.sheet$datapath, sheetIndex = 1, stringsAsFactors = FALSE, colClasses = NA)
-    memory$cntrt.sheet <- match_class(memory$cntrt.sheet, search.data[[input$search.index]])
+    memory$cntrt.sheet <- read.xlsx2(input$cntrt.sheet$datapath, sheetIndex = 1, stringsAsFactors = FALSE, colClasses = NA) %>% match_class(search.data[[length(search.data)]])
     
     # Make analytics using previous contract data
-    memory$cntrt.stat <- make_stat(memory$cntrt.sheet, search.data[[input$search.index]], 
+    memory$cntrt.stat <- make_stat(memory$cntrt.sheet, search.data[[length(search.data)]], 
                                    options = list(sign = input$cntrt.sign, year = input$cntrt.year, site = input$cntrt.site, coop = input$cntrt.coop))
     
     # Render stat
     output$cntrt.stat <- DT::renderDataTable(datatable(memory$cntrt.stat, extensions = "FixedHeader", editable = list(target = "cell", disable = list(columns = c(0, 4:8))), 
-                                                       options = list(fixedHeader = TRUE, lengthMenu = list(c(10, 25, 50, 100, -1), c("10", "25", "50", "100", "전체")), pageLength = 25))
-                                             %>% formatCurrency(c("자재비.단가", "최저가", "평균가", "중간가", "최고가"), currency = ' ￦', interval = 3, mark = ',', digit = 0, before = FALSE))
+                                                       options = list(fixedHeader = TRUE, lengthMenu = list(c(10, 25, 50, 100, -1), c("10", "25", "50", "100", "전체")), pageLength = -1))
+                                             %>% formatCurrency(c("자재비.단가", "최저가", "평균가", "중간가", "최고가"), currency = ' ￦', interval = 3, mark = ',', digit = 0, before = FALSE)
+                                             %>% formatStyle("가격차이", target = "row", color = JS("value < 0 ? 'blue' : (value > 0 ? 'red' : 'green')")))
     memory$cntrt.stat.proxy <- dataTableProxy("cntrt.stat")
     
     # Download stat
-    output$cntrt.download <- downloadHandler(filename = paste0("기계약_분석", ".xlsx"), content = function(file) write.xlsx2(memory$cntrt.stat, file, row.names = FALSE))
+    output$cntrt.download <- downloadHandler(filename = paste0(input$cntrt.sheet$name, "_분석", ".xlsx"), content = function(file) write.xlsx2(memory$cntrt.stat, file, row.names = FALSE))
     enable("cntrt.download")
   })
   
@@ -425,7 +452,7 @@ server <- function(input, output, session) {
       disable("cntrt.download")
       
       # Make analytics using previous contract data
-      memory$cntrt.stat <- make_stat(memory$cntrt.sheet, search.data[[input$search.index]], 
+      memory$cntrt.stat <- make_stat(memory$cntrt.sheet, search.data[[length(search.data)]], 
                                      options = list(sign = input$cntrt.sign, year = input$cntrt.year, site = input$cntrt.site, coop = input$cntrt.coop))
       
       # Reload stat
@@ -459,9 +486,10 @@ server <- function(input, output, session) {
     
     # Reload stat
     if (cntrt.edited$col == 2)
-      memory$cntrt.sheet[cntrt.edited$row, ] <- match_class(memory$cntrt.sheet[cntrt.edited$row, -c(1)], search.data[[input$search.index]], 
+      memory$cntrt.sheet[cntrt.edited$row, ] <- match_class(memory$cntrt.sheet[cntrt.edited$row, -c(1)], search.data[[length(search.data)]], 
                                                             options = list(sign = input$cntrt.sign, year = input$cntrt.year, site = input$cntrt.site, coop = input$cntrt.coop))
-    memory$cntrt.stat[cntrt.edited$row, ] <- make_stat(memory$cntrt.sheet[cntrt.edited$row, ], search.data[[input$search.index]])
+    memory$cntrt.stat[cntrt.edited$row, ] <- make_stat(memory$cntrt.sheet[cntrt.edited$row, ], search.data[[length(search.data)]], 
+                                                       options = list(sign = input$cntrt.sign, year = input$cntrt.year, site = input$cntrt.site, coop = input$cntrt.coop))
     replaceData(memory$cntrt.stat.proxy, memory$cntrt.stat, resetPaging = FALSE)
     enable("cntrt.download")
   })
