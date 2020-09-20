@@ -48,7 +48,7 @@ match_class <- function (sheet, data, options = NULL) {
 }
 
 # Declare function to make stat by matching with data
-make_stat <- function (sheet, data, options = NULL) {
+make_stat <- function (sheet, data, options = NULL, Download = TRUE) {
   if (!is.null(options)) {
     data <- data[data$연도 >= options$year[1] & data$연도 <= options$year[2], ]
     if (!is.null(options$sign) && options$sign) 
@@ -59,11 +59,39 @@ make_stat <- function (sheet, data, options = NULL) {
       data <- data[data$협력사 %in% options$coop, ]
   }
   stat <- cbind(sheet[, c(1:3, 6)], data.frame(최저가 = NA, 평균가 = NA, 중간가 = NA, 최고가 = NA, 가격차이 = NA))
+  if(Download == FALSE) stattemp <- stat
   for (i in 1:nrow(stat)) {
     temp <- na.omit(as.numeric(data[data$대분류 == stat[i, ]$대분류 & data$규격 == stat[i, ]$규격, ]$자재비.단가))
-    if (length(temp) > 0)
-      stat[i, 5:9] <- round(c(min(temp), mean(temp), median(temp), max(temp), as.integer(stat$자재비.단가[i]) - median(temp)))
+    if (length(temp) > 0){
+      if(Download == TRUE)
+        stat[i, 5:9] <- round(c(min(temp), mean(temp), median(temp), max(temp), as.integer(stat$자재비.단가[i]) - median(temp)))
+      else {
+        stattemp[i, 5:9] <- round(c(min(temp), mean(temp), median(temp), max(temp), as.integer(stat$자재비.단가[i]) - median(temp)))
+        temptemp <- data[data$대분류 == stat[i, ]$대분류 & data$규격 == stat[i, ]$규격, ]
+        stat[i, 5:9] <- c(paste0('<span title="', 
+                                 temptemp[which.min(temp),]$연도, '\n',
+                                 temptemp[which.min(temp),]$현장, '\n',
+                                 temptemp[which.min(temp),]$협력사, '\n',
+                                 temptemp[which.min(temp),]$계약번호, '">', paste0(comma(round(min(temp)), format = 'd'), ' ￦'), '</span>'), 
+                          paste0(comma(round(mean(temp)), format = 'd'), ' ￦'), 
+                          paste0(comma(round(median(temp)), format = 'd'), ' ￦'), 
+                          paste0('<span title="', 
+                                 temptemp[which.max(temp),]$연도, '\n',
+                                 temptemp[which.max(temp),]$현장, '\n',
+                                 temptemp[which.max(temp),]$협력사, '\n',
+                                 temptemp[which.max(temp),]$계약번호, '">', paste0(comma(round(max(temp)), format = 'd'), ' ￦'), '</span>'),
+                          round(as.integer(stat$자재비.단가[i]) - median(temp)))
+      }
+      
+    }
+    
   }
+  if(Download == FALSE){
+    for(j in 4:9){
+      stat[, j] <- factor(stat[, j], levels = unique(stat[order(stattemp[ ,j]), j]))
+    }
+  }
+  
   return(stat)
 }
 

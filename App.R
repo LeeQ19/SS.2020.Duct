@@ -2,19 +2,15 @@
 ### Set up environment
 #########################################################################################################################
 # Load library
-library("dplyr")
-library("DT")
-library("pdftools")
-library("shiny")
-library("shinydashboard")
-library("shinyWidgets")
-library("shinyjs")
-library("shinyalert")
-library("xlsx")
-options(shiny.maxRequestSize = 30*1024^2)
+source("Global.R", encoding = "UTF-8")
 
 # Load function
 source("Module.R", encoding = "UTF-8")
+
+options(shiny.maxRequestSize = 30*1024^2)
+
+# data.frame with credentials info
+credentials <- readRDS("DB/credentials.rds")
 
 # Load data
 search.data   <- readRDS("DB/search.data.rds")
@@ -39,12 +35,14 @@ ui <- dashboardPage(
   #########################################################
   dashboardSidebar(
     sidebarMenu(
-      menuItem("기계약 검색", tabName = "search", icon = icon("search")), 
-      menuItem("입찰 분석",   tabName = "bid",    icon = icon("chart-bar")), 
-      menuItem("기계약 분석", tabName = "cntrt",  icon = icon("dashboard")), 
-      menuItem("품셈 정보",   tabName = "labor",  icon = icon("file-invoice"))
+      id = "tabs", 
+      menuItem("통합검색", tabName = "search", icon = icon("search")), 
+      menuItem("견적서 비교",   tabName = "bid",    icon = icon("chart-bar")), 
+      menuItem("견적서 분석", tabName = "cntrt",  icon = icon("dashboard")), 
+      menuItem("품셈",   tabName = "labor",  icon = icon("file-invoice")), 
+      menuItem("사용자 로그",   tabName = "log",  icon = icon("list"))
     ), 
-    tags$footer("ver 2.6.0", align = "right", style = "font-size: 15px; position:absolute; bottom:0; width:100%; padding:10px")
+    tags$footer("ver 3.0.0", align = "right", style = "font-size: 15px; position:absolute; bottom:0; width:100%; padding:10px")
   ), 
   
   #########################################################
@@ -77,7 +75,10 @@ ui <- dashboardPage(
                    fileInput("search.upload", "엑셀 파일 업로드", accept = ".xlsx"), 
                    div(style = "margin-top: -20px;"), 
                    disabled(actionButton("search.update", "업데이트", icon = icon("cloud-upload"))), 
-                   div(style = "float: right;", disabled(actionButton("search.reset", "초기화", icon = icon("undo"))))
+                   div(style = "float: right;", 
+                       # h1(), 
+                       disabled(actionButton("search.reset", "초기화", icon = icon("undo")))
+                   )
             ), 
             column(6), 
             column(3, 
@@ -175,8 +176,17 @@ ui <- dashboardPage(
             width = NULL
           )
         )
+      ), 
+      
+      ############################
+      ### Labor tab content
+      ############################
+      tabItem(
+        tabName = "log", 
+        fluidRow(verbatimTextOutput("log"))
       )
-    )
+    ), 
+    div(style = "margin-bottom: 50px;")
   )
 )
 
@@ -187,6 +197,9 @@ server <- function(input, output, session) {
   #########################################################
   ### Set environment
   #########################################################
+  # Check authority
+  result_auth <- secure_server(check_credentials = check_credentials(credentials))
+  
   # Custom sidebar collapse
   runjs({'
           var el2 = document.querySelector(".skin-blue");
@@ -209,6 +222,11 @@ server <- function(input, output, session) {
                            search.table = search.data[[length(search.data)]], 
                            search.data  = search.data[[length(search.data)]])
   
+  # Log of tab selection
+  observeEvent(input$tabs, {
+    print(input$tabs)
+  })
+  
   #########################################################
   ### Search tab
   #########################################################
@@ -229,7 +247,7 @@ server <- function(input, output, session) {
     
     # Render table
     output$search.table <- DT::renderDataTable(datatable(isolate(memory$search.table), extensions = "FixedHeader", editable = list(target = "cell", disable = list(columns = c(0))), 
-                                                         options = list(fixedHeader = TRUE, lengthMenu = list(c(10, 25, 50, 100, -1), c("10", "25", "50", "100", "전체")), pageLength = 10))
+                                                         options = list(fixedHeader = TRUE, lengthMenu = list(c(10, 25, 50, 100, -1), c("10", "25", "50", "100", "전체")), pageLength = 10), colnames = c('번호' = 1))
                                                %>% formatCurrency(c("자재비.단가", "노무비.단가", "경비.단가"), currency = ' ￦', interval = 3, mark = ',', digit = 0, before = FALSE))
     memory$search.table.proxy <- dataTableProxy("search.table")
   })
@@ -313,7 +331,7 @@ server <- function(input, output, session) {
     }
     
     if (any(is.na(memory$search.sheet$대분류)))
-      shinyalert(title = "확인되지 않은 품목이 존재합니다!", text = input$search.upload$name, type = "warning", closeOnClickOutside = TRUE, confirmButtonText = "확인")
+      shinyalert(title = "확인되지 않은 품목이\n존재합니다!", text = input$search.upload$name, type = "warning", closeOnClickOutside = TRUE, confirmButtonText = "확인")
     
     output$search.sheet <- DT::renderDataTable(datatable(isolate(memory$search.sheet), extensions = "FixedHeader", editable = list(target = "cell", disable = list(columns = c(0))), 
                                                          options = list(fixedHeader = TRUE, pageLength = -1, dom = "tir"))
@@ -425,7 +443,8 @@ server <- function(input, output, session) {
   ### Contract tab
   #########################################################
   # Download example sheet
-  output$cntrt.example <- downloadHandler(filename = paste0("2019-5-1808_동우화인켐 평택_세현이엔지_계약", ".xlsx"), content = function(file) write.xlsx2(readRDS("DB/cntrt.example.rds"), file, row.names = FALSE))
+  output$cntrt.example <- downloadHandler(filename = paste0("2019-5-1808_동우화인켐 평택_세현이엔지_계약", ".xlsx"), 
+                                          content = function(file) write.xlsx2(readRDS("DB/cntrt.example.rds"), file, row.names = FALSE))
   
   # Analyze
   observeEvent(input$cntrt.sheet, {
@@ -436,17 +455,24 @@ server <- function(input, output, session) {
     
     # Make analytics using previous contract data
     memory$cntrt.stat <- make_stat(memory$cntrt.sheet, search.data[[length(search.data)]], 
-                                   options = list(sign = input$cntrt.sign, year = input$cntrt.year, site = input$cntrt.site, coop = input$cntrt.coop))
+                                   options = list(sign = input$cntrt.sign, year = input$cntrt.year, site = input$cntrt.site, coop = input$cntrt.coop), Download = FALSE)
+    rownames(memory$cntrt.stat) <- as.numeric(1:nrow(memory$cntrt.stat))
     
     # Render stat
-    output$cntrt.stat <- DT::renderDataTable(datatable(memory$cntrt.stat, extensions = "FixedHeader", editable = list(target = "cell", disable = list(columns = c(0, 4:8))), 
-                                                       options = list(fixedHeader = TRUE, lengthMenu = list(c(10, 25, 50, 100, -1), c("10", "25", "50", "100", "전체")), pageLength = -1))
-                                             %>% formatCurrency(c("자재비.단가", "최저가", "평균가", "중간가", "최고가"), currency = ' ￦', interval = 3, mark = ',', digit = 0, before = FALSE)
-                                             %>% formatStyle("가격차이", target = "row", color = JS("value < 0 ? 'blue' : (value > 0 ? 'red' : 'green')")))
+    output$cntrt.stat <- DT::renderDataTable(datatable(isolate(memory$cntrt.stat), extensions = "FixedHeader", 
+                                                       editable = list(target = "cell", disable = list(columns = c(0, 4:9))), escape = FALSE,
+                                                       options = list(fixedHeader = TRUE, lengthMenu = list(c(10, 25, 50, 100, -1), c("10", "25", "50", "100", "전체")), 
+                                                                      pageLength = -1), colnames = c('번호' = 1)) 
+                                             %>% (function (dt) {dt$x$data[[1]] <- as.numeric(dt$x$data[[1]]); return(dt)})
+                                             %>% formatCurrency(c("자재비.단가", "가격차이"), currency = ' ￦', interval = 3, mark = ',', digit = 0, before = FALSE)
+                                             %>% formatStyle(columns = "자재비.단가", valueColumns = "가격차이", color = JS("value < 0 ? 'blue' : (value > 0 ? 'red' : 'green')")))
     memory$cntrt.stat.proxy <- dataTableProxy("cntrt.stat")
     
     # Download stat
-    output$cntrt.download <- downloadHandler(filename = paste0(input$cntrt.sheet$name, "_분석", ".xlsx"), content = function(file) write.xlsx2(memory$cntrt.stat, file, row.names = FALSE))
+    output$cntrt.download <- downloadHandler(filename = paste0(input$cntrt.sheet$name, "_분석", ".xlsx"), 
+                                             content = function(file) write.xlsx2(make_stat(memory$cntrt.sheet, search.data[[length(search.data)]], 
+                                                                                            options = list(sign = input$cntrt.sign, year = input$cntrt.year, site = input$cntrt.site, coop = input$cntrt.coop), Download = TRUE), 
+                                                                                  file, row.names = FALSE))
     enable("cntrt.download")
   })
   
@@ -457,13 +483,16 @@ server <- function(input, output, session) {
       
       # Make analytics using previous contract data
       memory$cntrt.stat <- make_stat(memory$cntrt.sheet, search.data[[length(search.data)]], 
-                                     options = list(sign = input$cntrt.sign, year = input$cntrt.year, site = input$cntrt.site, coop = input$cntrt.coop))
+                                     options = list(sign = input$cntrt.sign, year = input$cntrt.year, site = input$cntrt.site, coop = input$cntrt.coop), Download = FALSE)
       
       # Reload stat
       replaceData(memory$cntrt.stat.proxy, memory$cntrt.stat, resetPaging = FALSE)
       
       # Download stat
-      output$cntrt.download <- downloadHandler(filename = paste0("기계약_분석", ".xlsx"), content = function(file) write.xlsx2(memory$cntrt.stat, file, row.names = FALSE))
+      output$cntrt.download <- downloadHandler(filename = paste0("기계약_분석", ".xlsx"), 
+                                               content = function(file) write.xlsx2(make_stat(memory$cntrt.sheet, search.data[[length(search.data)]], 
+                                                                                              options = list(sign = input$cntrt.sign, year = input$cntrt.year, site = input$cntrt.site, coop = input$cntrt.coop)), 
+                                                                                    file, row.names = FALSE))
       enable("cntrt.download")
     }
   })
@@ -493,7 +522,7 @@ server <- function(input, output, session) {
       memory$cntrt.sheet[cntrt.edited$row, ] <- match_class(memory$cntrt.sheet[cntrt.edited$row, -c(1)], search.data[[length(search.data)]], 
                                                             options = list(sign = input$cntrt.sign, year = input$cntrt.year, site = input$cntrt.site, coop = input$cntrt.coop))
     memory$cntrt.stat[cntrt.edited$row, ] <- make_stat(memory$cntrt.sheet[cntrt.edited$row, ], search.data[[length(search.data)]], 
-                                                       options = list(sign = input$cntrt.sign, year = input$cntrt.year, site = input$cntrt.site, coop = input$cntrt.coop))
+                                                       options = list(sign = input$cntrt.sign, year = input$cntrt.year, site = input$cntrt.site, coop = input$cntrt.coop), Download = FALSE)
     replaceData(memory$cntrt.stat.proxy, memory$cntrt.stat, resetPaging = FALSE)
     enable("cntrt.download")
   })
@@ -501,7 +530,6 @@ server <- function(input, output, session) {
   #########################################################
   ### labor tab
   #########################################################
-  
   # Update select box contents
   observeEvent(input$labor.chapter, {
     updateSelectInput(session, inputId = "labor.detail", choices = names(labor.data[[input$labor.index]][[input$labor.chapter]]))
@@ -583,9 +611,32 @@ server <- function(input, output, session) {
       memory$response$labor.remove <- FALSE
     }
   })
+  
+  #########################################################
+  ### Contract tab
+  #########################################################
+  # Render log
+  output$log <- renderText("2020-09-19T16:54:41.312502+00:00 shinyapps[2669782]: The following objects are masked from ‘package:stats’:")
+  
 }
 
 #########################################################################################################################
 ### Run app
 #########################################################################################################################
+# Change language
+set_labels(
+  language = "en", 
+  "Please authenticate" = "덕트 구매지원 시스템",
+  "Username:" = "ID",
+  "Password:" = "PW",
+  "Login" = "로그인", 
+  "Username or password are incorrect" = "올바르지 않은 계정입니다."
+)
+
+# Encrypt ui
+ui <- secure_app(tags_top = tags$div(tags$img(src = "https://www.shinsungeng.com/resources/images/common/logo.png"), tags$h5(paste0("ID: ", credentials$user[1], " / PW: ", credentials$password[1]))), 
+                 ui, 
+                 theme = shinytheme("flatly"))
+
+# Run app
 shinyApp(ui, server)

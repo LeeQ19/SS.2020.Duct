@@ -1,3 +1,11 @@
+# credentials
+credentials <- data.frame(
+  user = c("admin"), 
+  password = c("ss"), 
+  stringsAsFactors = FALSE
+)
+saveRDS(credentials, file = "DB/credentials.rds")
+
 # search.data
 data <- read.csv("DB/Data.csv", stringsAsFactors = FALSE, fileEncoding = "euc-kr")
 data$품명 <- gsub("[[:blank:][:punct:]]", "", data$품명)
