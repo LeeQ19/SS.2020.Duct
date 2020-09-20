@@ -634,7 +634,7 @@ set_labels(
 )
 
 # Encrypt ui
-ui <- secure_app(tags_top = tags$div(tags$img(src = "https://www.shinsungeng.com/resources/images/common/logo.png"), tags$h5(paste0("ID: ", credentials$user[1], " / PW: ", credentials$password[1]))), 
+ui <- secure_app(tags_top = tags$div(tags$head(includeHTML(("google-analytics.html"))), tags$img(src = "https://www.shinsungeng.com/resources/images/common/logo.png"), tags$h5(paste0("ID: ", credentials$user[1], " / PW: ", credentials$password[1]))), 
                  ui, 
                  theme = shinytheme("flatly"))
 
