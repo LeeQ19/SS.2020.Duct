@@ -1,10 +1,18 @@
 # credentials
-credentials <- data.frame(
-  user = c("admin"), 
-  password = c("ss"), 
-  stringsAsFactors = FALSE
-)
+credentials <- data.frame(user = c("admin"), 
+                          password = c(scrypt::hashPassword("ss")), 
+                          is_hashed_password = TRUE, 
+                          comment = c("관리자"), 
+                          stringsAsFactors = FALSE)
 saveRDS(credentials, file = "DB/credentials.rds")
+
+# Log
+logs <- data.frame(time = c(format(Sys.time(), tz = "Asia/Seoul")), 
+                   auth = c("admin"), 
+                   action = c("Publish"), 
+                   object = c(NA), 
+                   to = c(NA))
+saveRDS(logs, file = "DB/logs.rds")
 
 # search.data
 data <- read.csv("DB/Data.csv", stringsAsFactors = FALSE, fileEncoding = "euc-kr")

@@ -38,7 +38,7 @@ ui <- dashboardPage(
       id = "tabs", 
       menuItem("통합검색",    tabName = "search", icon = icon("search")), 
       menuItem("견적서 비교", tabName = "cmp",    icon = icon("chart-bar")), 
-      menuItem("견적서 분석", tabName = "analy",  icon = icon("dashboard")), 
+      menuItem("견적서 검토", tabName = "analy",  icon = icon("dashboard")), 
       menuItem("품셈",        tabName = "labor",  icon = icon("file-invoice")), 
       menuItem("사용자 로그", tabName = "log",  icon = icon("list"))
     ), 
@@ -50,7 +50,6 @@ ui <- dashboardPage(
   #########################################################
   dashboardBody(
     # tags$head(includeHTML(("google-analytics.html"))), 
-    tags$head(tags$script(src="getIP.js")), 
     useShinyjs(), 
     useShinyalert(), 
     tabItems(
@@ -336,19 +335,22 @@ server <- function(input, output, session) {
     memory$search.sheet <- cbind(read.xlsx2(input$search.upload$datapath, sheetIndex = 1, stringsAsFactors = FALSE, colClasses = NA) 
                                  %>% select_if(names(.) %in% colnames(search.data[[length(search.data)]])) %>% match_class(search.data[[length(search.data)]]), 
                                  연도 = as.integer(unlist(strsplit(filename[1], "-"))[1]), 현장 = filename[2], 협력사 = filename[3], 계약번호 = filename[1], 계약여부 = filename[4])
-    id.na <- which(is.na(memory$search.sheet$대분류))
+    id.na <- which(!memory$search.sheet$대분류 %in% unique(search.data[[length(search.data)]]$대분류))
     if (length(id.na) > 0) {
       memory$search.sheet <- rbind(memory$search.sheet[id.na, ], memory$search.sheet[-id.na, ])
       rownames(memory$search.sheet) <- 1:nrow(memory$search.sheet)
+      memory$search.sheet[,14] <- c(rep(1, length(id.na)), rep(0, nrow(memory$search.sheet)-length(id.na)))
+      colnames(memory$search.sheet) <- c(colnames(memory$search.sheet)[c(1:13)], 'check')
     }
     
     if (any(is.na(memory$search.sheet$대분류)))
       shinyalert(title = "확인되지 않은 품목이\n존재합니다!", text = input$search.upload$name, type = "warning", closeOnClickOutside = TRUE, confirmButtonText = "확인")
     
     output$search.sheet <- DT::renderDataTable(datatable(isolate(memory$search.sheet), extensions = "FixedHeader", editable = list(target = "cell", disable = list(columns = c(0))), 
-                                                         options = list(fixedHeader = TRUE, pageLength = -1, dom = "tir"))
+                                                         options = list(fixedHeader = TRUE, pageLength = -1, dom = "tir", columnDefs = list(list(targets = 14, visible = FALSE))))
                                                %>% formatCurrency(c("자재비.단가", "노무비.단가", "경비.단가"), currency = ' ￦', interval = 3, mark = ',', digit = 0, before = FALSE)
-                                               %>% formatStyle("대분류", target = "row", backgroundColor = styleEqual(c(NA, ""), rep("yellow", 2))))
+                                               %>% formatStyle("check", target = "row", backgroundColor = styleEqual(c(1), "yellow"))
+    )
     memory$search.sheet.proxy <- dataTableProxy("search.sheet")
     
     enable("search.update")
@@ -365,11 +367,20 @@ server <- function(input, output, session) {
     memory$search.sheet[search.edit.temp$row, search.edit.temp$col] <- DT::coerceValue(search.edit.temp$value, memory$search.sheet[search.edit.temp$row, search.edit.temp$col])
     if (search.edit.temp$col == 2)
       memory$search.sheet[search.edit.temp$row, ] <- match_class(memory$search.sheet[search.edit.temp$row, -c(1)], search.data[[length(search.data)]])
+    id.na <- which(!memory$search.sheet$대분류 %in% unique(search.data[[length(search.data)]]$대분류))
+    if (length(id.na) > 0) {
+      memory$search.sheet <- rbind(memory$search.sheet[id.na, ], memory$search.sheet[-id.na, ])
+      rownames(memory$search.sheet) <- 1:nrow(memory$search.sheet)
+      memory$search.sheet[,14] <- c(rep(1, length(id.na)), rep(0, nrow(memory$search.sheet)-length(id.na)))
+      colnames(memory$search.sheet) <- c(colnames(memory$search.sheet)[c(1:13)], 'check')
+    }
+    
     replaceData(memory$search.sheet.proxy, memory$search.sheet, resetPaging = FALSE)
     
     enable("search.update")
     enable("search.reset")
   })
+  
   
   # Update archive - display popup message
   observeEvent(input$search.update, {
@@ -384,7 +395,7 @@ server <- function(input, output, session) {
       if (memory$response$search.update == "")
         memory$response$search.update <- format(Sys.time(), tz = "Asia/Seoul")
       memory$search.sheet$품명 <- gsub("[[:blank:][:punct:]]", "", memory$search.sheet$품명)
-      memory$search.sheet <- rbind(memory$search.sheet, search.data[[length(search.data)]])
+      memory$search.sheet <- rbind(memory$search.sheet[, -ncol(memory$search.sheet)], search.data[[length(search.data)]])
       search.data[[memory$response$search.update]] <<- memory$search.sheet
       saveRDS(search.data, file = "DB/search.data.rds")
       
@@ -523,7 +534,7 @@ server <- function(input, output, session) {
   })
   
   #########################################################
-  ### Anaysis tab
+  ### Analysis tab
   #########################################################
   # Download example sheet
   output$analy.example <- downloadHandler(filename = paste0("2019-5-1808_동우화인켐 평택_세현이엔지_계약", ".xlsx"), 
@@ -545,9 +556,9 @@ server <- function(input, output, session) {
     output$analy.stat <- DT::renderDataTable(datatable(isolate(memory$analy.stat), extensions = "FixedHeader", 
                                                        editable = list(target = "cell", disable = list(columns = c(0, 4:9))), escape = FALSE,
                                                        options = list(fixedHeader = TRUE, lengthMenu = list(c(10, 25, 50, 100, -1), c("10", "25", "50", "100", "전체")), 
-                                                                      pageLength = -1), colnames = c('번호' = 1))
+                                                                      pageLength = -1, columnDefs = list(list(targets = 9, visible = FALSE))), colnames = c('번호' = 1))
                                              %>% (function (dt) {dt$x$data[[1]] <- as.numeric(dt$x$data[[1]]); return(dt)})
-                                             %>% formatCurrency(c("자재비.단가", "가격차이"), currency = ' ￦', interval = 3, mark = ',', digit = 0, before = FALSE)
+                                             %>% formatCurrency(c("자재비.단가", "가격차이"), currency = " ￦", interval = 3, mark = ",", digit = 0, before = FALSE)
                                              %>% formatStyle(columns = "자재비.단가", valueColumns = "가격차이", color = JS("value < 0 ? 'blue' : (value > 0 ? 'red' : 'green')")))
     memory$analy.stat.proxy <- dataTableProxy("analy.stat")
     
@@ -627,7 +638,7 @@ server <- function(input, output, session) {
   # Upload data
   observeEvent(input$labor.upload, {
     disable("labor.update")
-    memory$labor.sheet <- table_making(input$labor.upload$datapath)
+    memory$labor.sheet <- read_pdf(input$labor.upload$datapath)
     updateProgressBar(session = session, id = "labor.progress", value = 100)
     enable("labor.update")
     enable("labor.reset")
@@ -699,9 +710,9 @@ server <- function(input, output, session) {
   ### Log tab
   #########################################################
   # Render log
-  output$log <- renderText(paste0(input$getIP$ip, " [", format(Sys.time(), tz = "Asia/Seoul"), "] ", reactiveValuesToList(auth), ": Access", "\n", 
-                                  input$getIP$ip, " [", format(Sys.time(), tz = "Asia/Seoul"), "] ", reactiveValuesToList(auth), ": Select ", "search", "\n", 
-                                  input$getIP$ip, " [", format(Sys.time(), tz = "Asia/Seoul"), "] ", reactiveValuesToList(auth), ": Change ", "search.table[3, 1]", " to ", "덕트"))
+  output$log <- renderText(paste0("\n", "[", format(Sys.time(), tz = "Asia/Seoul"), "] ", reactiveValuesToList(auth)$user, ": Access", 
+                                  "\n", "[", format(Sys.time(), tz = "Asia/Seoul"), "] ", reactiveValuesToList(auth)$user, ": Select ", "search", 
+                                  "\n", "[", format(Sys.time(), tz = "Asia/Seoul"), "] ", reactiveValuesToList(auth)$user, ": Change ", "search.table[3, 1]", " to ", "덕트"))
 }
 
 #########################################################################################################################
@@ -719,7 +730,7 @@ set_labels(
 
 # Encrypt ui
 ui <- secure_app(tags_top = tags$div(tags$img(src = "https://www.shinsungeng.com/resources/images/common/logo.png"), 
-                                     tags$h5(paste0("ID: ", credentials$user[1], " / PW: ", credentials$password[1]))), 
+                                     tags$h5("ID: admin / PW: ss")), 
                  ui = ui, 
                  theme = shinytheme("flatly"))
 

@@ -95,30 +95,35 @@ make_stat <- function (sheet, data, options = NULL, Download = TRUE) {
   return(stat)
 }
 
+# Declare function to print logs
+print_log <- function (log) {
+  log <- replace(log, is.na(log), "")
+}
+
 # Declare function to read pdf and extract data
-table_making <- function(path, session = session){
+read_pdf <- function (path, session = session) {
   tmp_data <- pdf_data(path)
   result <- list()
   form <- readRDS("DB/labor.data.rds")[[1]]
   chapter_list <- names(form)
-  for(ch in 1:length(chapter_list)){
+  for (ch in 1:length(chapter_list)) {
     chapter <- chapter_list[ch]
     chapter <- strsplit(chapter,split= " ")[[1]][1]
     first <- 0
     duct_list <- NULL
-    for(i in 1:length(tmp_data)){
-      if(!is.na(tmp_data[[i]][1, 6])){
-        if(first == 0){
-          if(sum(tmp_data[[i]][ ,6] == '적용기준') > 0){
+    for (i in 1:length(tmp_data)) {
+      if (!is.na(tmp_data[[i]][1, 6])) {
+        if (first == 0) {
+          if (sum(tmp_data[[i]][, 6] == "적용기준") > 0) {
             page_difference <- i - 1
-            main_main_x <-  as.integer(tmp_data[[i]][(which(tmp_data[[i]][ ,6] == '적용기준')-1) ,3])
-            main_x <- as.integer(tmp_data[[i]][(which(tmp_data[[i]][ ,6] == '적용기준')+2) ,3])
+            main_main_x <-  as.integer(tmp_data[[i]][(which(tmp_data[[i]][, 6] == "적용기준") - 1) ,3])
+            main_x <- as.integer(tmp_data[[i]][(which(tmp_data[[i]][, 6] == "적용기준") + 2) ,3])
             first <- 1
-            for(j in (which(tmp_data[[i]][ ,6] == '적용기준')+2):nrow(tmp_data[[i]])){
-              if(grepl("·", tmp_data[[i]][j ,6])){
-                if(nchar(gsub('·', "", tmp_data[[i]][j ,6])) > 0){
-                  sub_x <- as.integer(tmp_data[[i]][(j+1) ,3])
-                } else sub_x <- as.integer(tmp_data[[i]][(j+2) ,3])
+            for (j in (which(tmp_data[[i]][, 6] == "적용기준") + 2):nrow(tmp_data[[i]])) {
+              if (grepl("·", tmp_data[[i]][j, 6])) {
+                if(nchar(gsub("·", "", tmp_data[[i]][j ,6])) > 0){
+                  sub_x <- as.integer(tmp_data[[i]][j + 1, 3])
+                } else sub_x <- as.integer(tmp_data[[i]][j + 2, 3])
                 break()
               }
             }
