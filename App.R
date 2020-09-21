@@ -194,11 +194,15 @@ ui <- dashboardPage(
       ), 
       
       ############################
-      ### Labor tab content
+      ### Log tab content
       ############################
       tabItem(
         tabName = "log", 
-        fluidRow(verbatimTextOutput("log"))
+        fluidRow(box(
+          fluidRow(div(style = "float: right; margin-right: 16px; margin-bottom: 15px;", downloadButton("log.download", "다운로드"))), 
+          verbatimTextOutput("log"), 
+          width = NULL
+        ))
       )
     ), 
     div(style = "margin-bottom: 50px;")
@@ -481,68 +485,106 @@ server <- function(input, output, session) {
   #########################################################
   
   output$cmp.example1 <- downloadHandler(filename = paste0("2017-5-0544_NCK_그린빌더스", ".xlsx"), content = function(file) write.xlsx2(readRDS("DB/cmp.example.rds")[[1]], file, row.names = FALSE))
-  
   output$cmp.example2 <- downloadHandler(filename = paste0("2017-5-0544_NCK_성현기공", ".xlsx"), content = function(file) write.xlsx2(readRDS("DB/cmp.example.rds")[[2]], file, row.names = FALSE))
-  
   output$cmp.example3 <- downloadHandler(filename = paste0("2017-5-0544_NCK_유창이엔지니어링", ".xlsx"), content = function(file) write.xlsx2(readRDS("DB/cmp.example.rds")[[3]], file, row.names = FALSE))
   
   observeEvent(input$cmp.sheet, {
-    
     memory$tempdata <- list()
     text.temp <- NULL
     memory$table.temp <- data.frame(matrix(nrow=0, ncol=(4 + nrow(input$cmp.sheet)*3)))
-    for(i in 1:nrow(input$cmp.sheet)){
+    for (i in 1:nrow(input$cmp.sheet)) {
       memory$tempdata[[i]] <- match_class(read.xlsx2(input$cmp.sheet$datapath[i], sheetIndex = 1, stringsAsFactors = FALSE, colClasses = NA),  search.data[[input$search.index]])
-      memory$tempdata[[i]][,c(5:10)] <- apply(memory$tempdata[[i]][,c(5:10)], 2, function(x) {x[is.na(as.integer(x))] <- 0
-      return(x)})
+      memory$tempdata[[i]][, c(5:10)] <- apply(memory$tempdata[[i]][,c(5:10)], 2, function (x) {x[is.na(as.integer(x))] <- 0; return(x)})
       
       
-      table.temp.temp <- cbind(memory$tempdata[[i]][ ,c(1, 3)], 
-                               mat.or.vec(nr=nrow(memory$tempdata[[i]]), nc=(i - 1)), 
-                               memory$tempdata[[i]][,6], 
-                               mat.or.vec(nr=nrow(memory$tempdata[[i]]), nc=(nrow(input$cmp.sheet) - i)),
-                               mat.or.vec(nr=nrow(memory$tempdata[[i]]), nc=(i - 1)), 
-                               memory$tempdata[[i]][,8], 
-                               mat.or.vec(nr=nrow(memory$tempdata[[i]]), nc=(nrow(input$cmp.sheet) - i)),
-                               mat.or.vec(nr=nrow(memory$tempdata[[i]]), nc=(i - 1)), 
-                               memory$tempdata[[i]][,10], 
-                               mat.or.vec(nr=nrow(memory$tempdata[[i]]), nc=(nrow(input$cmp.sheet) - i)), i, c(1:nrow(memory$tempdata[[i]])))
+      table.temp.temp <- cbind(memory$tempdata[[i]][ , c(1, 3)], 
+                               mat.or.vec(nr=nrow(memory$tempdata[[i]]), nc = (i - 1)), 
+                               memory$tempdata[[i]][, 6], 
+                               mat.or.vec(nr=nrow(memory$tempdata[[i]]), nc = (nrow(input$cmp.sheet) - i)),
+                               mat.or.vec(nr=nrow(memory$tempdata[[i]]), nc = (i - 1)), 
+                               memory$tempdata[[i]][, 8], 
+                               mat.or.vec(nr=nrow(memory$tempdata[[i]]), nc = (nrow(input$cmp.sheet) - i)),
+                               mat.or.vec(nr=nrow(memory$tempdata[[i]]), nc = (i - 1)), 
+                               memory$tempdata[[i]][, 10], 
+                               mat.or.vec(nr=nrow(memory$tempdata[[i]]), nc = (nrow(input$cmp.sheet) - i)), i, c(1:nrow(memory$tempdata[[i]])))
       colnames(table.temp.temp) <- colnames(memory$table.temp)
       memory$table.temp <- data.frame(rbind(memory$table.temp, table.temp.temp))
-      memory$table.temp[,-c(1,2)][is.na(memory$table.temp[,-c(1,2)])] <- 0
+      memory$table.temp[, -c(1, 2)][is.na(memory$table.temp[, -c(1, 2)])] <- 0
       text.temp <- paste0(text.temp, "견적서 ", i, ": ", stringi::stri_extract_first(str = input$cmp.sheet[i, 1], regex = ".*(?=\\.)"), "</br>")
-      
     }
     
     
     output$cmp.text <- renderText({text.temp})
     memory$table.temp <- match_table(memory$table.temp,memory$tempdata)
-    table.show <- data.frame(memory$table.temp[,c(1:(2+nrow(input$cmp.sheet)*3))])
-    colnames(table.show) <- c('대분류', '규격', paste('자재비 단가', 1:nrow(input$cmp.sheet)), paste('노무비 단가', 1:nrow(input$cmp.sheet)), paste('경비 단가', 1:nrow(input$cmp.sheet)))
+    table.show <- data.frame(memory$table.temp[, c(1:(2 + nrow(input$cmp.sheet) * 3))])
+    colnames(table.show) <- c("대분류", "규격", paste("자재비 단가", 1:nrow(input$cmp.sheet)), paste("노무비 단가", 1:nrow(input$cmp.sheet)), paste("경비 단가", 1:nrow(input$cmp.sheet)))
     rownames(table.show) <- c(1:nrow(table.show))
-    output$cmp.table <- DT::renderDataTable(datatable(table.show, extensions = "FixedHeader", editable = list(target = "cell", disable = list(columns = c(0, 3:ncol(table.show)))),
-                                                      options = list(fixedHeader = TRUE, lengthMenu = list(c(10, 25, 50, 100, -1), c("10", "25", "50", "100", "전체")), pageLength = 10))
-                                            %>% formatStyle(c("자재비 단가 1", "노무비 단가 1", "경비 단가 1"), borderLeft = "solid 2px")
-                                            %>% formatCurrency(c(3:ncol(table.show)), currency = ' ￦', interval = 3, mark = ',', digit = 0, before = FALSE))
+    temp.show <- mat.or.vec(nr = nrow(table.show), nc = ncol(table.show) - 2)
+    for (i in 1:nrow(table.show)) {
+      for (j in 1:3) {
+        col <- as.integer(c((3 + (j - 1) * ((ncol(table.show) - 2) / 3)):(2 + j * ((ncol(table.show) - 2) / 3))))
+        temp.temp.show <- rep(0, length(col))
+        if ((sum(table.show[i, col] == max(as.integer(table.show[i, col])))) == 1) {
+          temp.temp.show[which.max(table.show[i, col])] <- 1
+        }
+        if ((sum(table.show[i, col] == min(as.integer(table.show[i, col])))) == 1) {
+          temp.temp.show[which.min(table.show[i, col])] <- -1
+        }
+        temp.show[i, c((1 + (j - 1) * ((ncol(table.show) - 2) / 3)):(j * (ncol(table.show) - 2) / 3))] <- temp.temp.show
+      }
+    }
+    table.show <- cbind(table.show, temp.show)
+    temp.temp.table.show <- datatable(table.show, extensions = "FixedHeader", editable = list(target = "cell", disable = list(columns = c(0, 3:ncol(table.show)))),
+                                      options = list(fixedHeader = TRUE, lengthMenu = list(c(10, 25, 50, 100, -1), c("10", "25", "50", "100", "전체")), pageLength = 10, 
+                                                     columnDefs = list(list(targets = c((1 + ncol(table.show) - ncol(temp.show)):ncol(table.show)), visible = FALSE))) 
+    )
+    temp.temp.table.show <- temp.temp.table.show %>% formatStyle(c("자재비 단가 1", "노무비 단가 1", "경비 단가 1"), borderLeft = "solid 1px black") %>% formatCurrency(c(3:(ncol(table.show) - ncol(temp.show))), currency = ' ￦', interval = 3, mark = ',', digit = 0, before = FALSE)
+    for (i in 1:(ncol(table.show) - 2) / 2) {
+      temp.temp.table.show <- temp.temp.table.show %>% formatStyle(columns = colnames(table.show)[c(3:(ncol(table.show)-ncol(temp.show)))][i], 
+                                                                   valueColumns = colnames(table.show)[c((1+ncol(table.show)-ncol(temp.show)):ncol(table.show))][i], 
+                                                                   color = JS("value < 0 ? 'blue' : (value > 0 ? 'red' : 'green')"))
+    }
+    output$cmp.table <- DT::renderDataTable(temp.temp.table.show)
     memory$cmp.table.proxy <- dataTableProxy("cmp.table")
   }
   )
   
   # Edit table
   observeEvent(input$cmp.table_cell_edit, {
-    
-    # Replace data of sheet
     cmp.edited <- input$cmp.table_cell_edit
     diff <- nrow(memory$table.temp)
     memory$table.temp[cmp.edited$row, cmp.edited$col] <- DT::coerceValue(cmp.edited$value, memory$table.temp[cmp.edited$row, cmp.edited$col])
-    memory$table.temp <- match_table(memory$table.temp,memory$tempdata)
-    table.show <- data.frame(memory$table.temp[,c(1:(2+nrow(input$cmp.sheet)*3))])
-    colnames(table.show) <- c('대분류', '규격', paste('자재비 단가', 1:nrow(input$cmp.sheet)), paste('노무비 단가', 1:nrow(input$cmp.sheet)), paste('경비 단가', 1:nrow(input$cmp.sheet)))
+    memory$table.temp <- match_table(memory$table.temp, memory$tempdata)
+    table.show <- data.frame(memory$table.temp[, c(1:(2 + nrow(input$cmp.sheet) * 3))])
+    colnames(table.show) <- c("대분류", "규격", paste("자재비 단가", 1:nrow(input$cmp.sheet)), paste("노무비 단가", 1:nrow(input$cmp.sheet)), paste("경비 단가", 1:nrow(input$cmp.sheet)))
     rownames(table.show) <- c(1:nrow(table.show))
-    if(nrow(table.show) !=  diff){
-      output$cmp.table <- DT::renderDataTable(datatable(table.show, extensions = "FixedHeader", editable = list(target = "cell", disable = list(columns = c(0, 3:ncol(table.show)))),
-                                                        options = list(fixedHeader = TRUE, lengthMenu = list(c(10, 25, 50, 100, -1), c("10", "25", "50", "100", "전체")), pageLength = 10))
-                                              %>% formatCurrency(c(3:ncol(table.show)), currency = ' ￦', interval = 3, mark = ',', digit = 0, before = FALSE))
+    temp.show <- mat.or.vec(nr = nrow(table.show), nc = ncol(table.show) - 2)
+    for (i in 1:nrow(table.show)) {
+      for (j in 1:3) {
+        col <- as.integer(c((3 + (j - 1) * ((ncol(table.show) - 2) / 3)):(2 + j * ((ncol(table.show) - 2) / 3))))
+        temp.temp.show <- rep(0, length(col))
+        if ((sum(table.show[i, col] == max(as.integer(table.show[i, col])))) == 1) {
+          temp.temp.show[which.max(table.show[i, col])] <- 1
+        }
+        if ((sum(table.show[i, col] == min(as.integer(table.show[i, col])))) == 1) {
+          temp.temp.show[which.min(table.show[i, col])] <- -1
+        }
+        temp.show[i ,c((1 + (j - 1) * ((ncol(table.show) - 2) / 3)):(j * (ncol(table.show) - 2) / 3))] <- temp.temp.show
+      }
+    }
+    table.show <- cbind(table.show, temp.show)
+    if (nrow(table.show) !=  diff) {
+      ttemp.temp.table.show <- datatable(table.show, extensions = "FixedHeader", editable = list(target = "cell", disable = list(columns = c(0, 3:ncol(table.show)))),
+                                         options = list(fixedHeader = TRUE, lengthMenu = list(c(10, 25, 50, 100, -1), c("10", "25", "50", "100", "전체")), pageLength = 10, 
+                                                        columnDefs = list(list(targets = c((1+ncol(table.show)-ncol(temp.show)):ncol(table.show)), visible = FALSE))) 
+      )
+      temp.temp.table.show <- {temp.temp.table.show %>% formatStyle(c("자재비 단가 1", "노무비 단가 1", "경비 단가 1"), borderLeft = "solid 1px black") %>% formatCurrency(c(3:(ncol(table.show)-ncol(temp.show))), currency = ' ￦', interval = 3, mark = ',', digit = 0, before = FALSE)}
+      for (i in 1:(ncol(table.show) - 2) / 2) {
+        temp.temp.table.show <- temp.temp.table.show %>% formatStyle(columns = colnames(table.show)[c(3:(ncol(table.show) - ncol(temp.show)))][i], 
+                                                                     valueColumns = colnames(table.show)[c((1+ncol(table.show) - ncol(temp.show)):ncol(table.show))][i], 
+                                                                     color = JS("value < 0 ? 'blue' : (value > 0 ? 'red' : 'green')"))
+      }
+      output$cmp.table <- DT::renderDataTable(temp.temp.table.show)
     } else{
       replaceData(memory$cmp.table.proxy, table.show, resetPaging = FALSE)
     }
@@ -742,10 +784,11 @@ server <- function(input, output, session) {
   #########################################################
   ### Log tab
   #########################################################
+  # Download log
+  output$log.download <- downloadHandler(filename = paste0("Log", ".xlsx"), content = function(file) write.xlsx2(memory$logs, file, row.names = FALSE))
+  
   # Render log
-  observeEvent(memory$logs, {
   output$log <- renderText(print_log(memory$logs))
-  })
 }
 
 #########################################################################################################################
