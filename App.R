@@ -15,7 +15,7 @@ credentials <- readRDS("DB/credentials.rds")
 # Load data
 search.data   <- readRDS("DB/search.data.rds")
 search.labels <- c("대분류", "규격", "연도", "현장", "협력사", "계약번호", "계약여부")
-search.id     <- c("search.major", "search.std", "search.year", "search.site", "search.coop", "search.num", "search.cntrt")
+search.id     <- c("search.major", "search.std", "search.year", "search.site", "search.coop", "search.num", "search.analy")
 search.total  <- sapply(search.labels, function (x) sort(unique(search.data[[length(search.data)]][[x]])))
 search.width  <- c(2, 2, 1, 2, 2, 2, 1)
 
@@ -36,11 +36,11 @@ ui <- dashboardPage(
   dashboardSidebar(
     sidebarMenu(
       id = "tabs", 
-      menuItem("통합검색", tabName = "search", icon = icon("search")), 
-      menuItem("견적서 비교",   tabName = "bid",    icon = icon("chart-bar")), 
-      menuItem("견적서 분석", tabName = "cntrt",  icon = icon("dashboard")), 
-      menuItem("품셈",   tabName = "labor",  icon = icon("file-invoice")), 
-      menuItem("사용자 로그",   tabName = "log",  icon = icon("list"))
+      menuItem("통합검색",    tabName = "search", icon = icon("search")), 
+      menuItem("견적서 비교", tabName = "cmp",    icon = icon("chart-bar")), 
+      menuItem("견적서 분석", tabName = "analy",  icon = icon("dashboard")), 
+      menuItem("품셈",        tabName = "labor",  icon = icon("file-invoice")), 
+      menuItem("사용자 로그", tabName = "log",  icon = icon("list"))
     ), 
     tags$footer("ver 3.0.0", align = "right", style = "font-size: 15px; position:absolute; bottom:0; width:100%; padding:10px")
   ), 
@@ -49,6 +49,8 @@ ui <- dashboardPage(
   ### Body content
   #########################################################
   dashboardBody(
+    # tags$head(includeHTML(("google-analytics.html"))), 
+    tags$head(tags$script(src="getIP.js")), 
     useShinyjs(), 
     useShinyalert(), 
     tabItems(
@@ -76,7 +78,6 @@ ui <- dashboardPage(
                    div(style = "margin-top: -20px;"), 
                    disabled(actionButton("search.update", "업데이트", icon = icon("cloud-upload"))), 
                    div(style = "float: right;", 
-                       # h1(), 
                        disabled(actionButton("search.reset", "초기화", icon = icon("undo")))
                    )
             ), 
@@ -98,48 +99,63 @@ ui <- dashboardPage(
       ), 
       
       ############################
-      ### Bid tab content
+      ### Compare tab content
       ############################
       tabItem(
-        tabName = "bid", 
-        h1("입찰 분석 탭 내용")
-      ), 
-      
-      ############################
-      ### Contract tab content
-      ############################
-      tabItem(
-        tabName = "cntrt", 
+        tabName = "cmp",
         # Upload file
         fluidRow(box(
           # Input: select a file
           column(6, 
-                 fileInput("cntrt.sheet", "엑셀 파일 업로드", accept = ".xlsx"), 
-                 downloadButton("cntrt.example", "예시파일")
+                 fileInput("cmp.sheet", "엑셀 파일 업로드", accept = ".xlsx", multiple = TRUE), 
+                 div(style = "margin-top: -20px;"), 
+                 downloadButton("cmp.example1", "예시파일1"), 
+                 downloadButton("cmp.example2", "예시파일2"), 
+                 downloadButton("cmp.example3", "예시파일3"), 
+          ), 
+          column(6, 
+                 div(style = "margin-top: 22px;"), 
+                 htmlOutput("cmp.text")
+          ), 
+          width = NULL)),
+        DT::dataTableOutput("cmp.table")
+      ), 
+      
+      ############################
+      ### Analysis tab content
+      ############################
+      tabItem(
+        tabName = "analy", 
+        # Upload file
+        fluidRow(box(
+          # Input: select a file
+          column(6, 
+                 fileInput("analy.sheet", "엑셀 파일 업로드", accept = ".xlsx"), 
+                 downloadButton("analy.example", "예시파일")
           ), 
           
           # Options
           column(2, 
-                 div(style = "margin-top: 20px; margin-bottom: 30px;", checkboxInput("cntrt.sign", "계약건 한정",   value = FALSE)), 
+                 div(style = "margin-top: 20px; margin-bottom: 30px;", checkboxInput("analy.sign", "계약건 한정",   value = FALSE)), 
                  tags$style(".irs-grid-pol.small {height: 0px;}"), 
-                 sliderInput("cntrt.year", "분석기간", min = min(search.total[[3]]), max = max(search.total[[3]]), value = c(min(search.total[[3]]), max(search.total[[3]])), step = 1, width = "75%", sep = "", post = "년")
+                 sliderInput("analy.year", "분석기간", min = min(search.total[[3]]), max = max(search.total[[3]]), value = c(min(search.total[[3]]), max(search.total[[3]])), step = 1, width = "75%", sep = "", post = "년")
           ),  
           column(1, 
-                 fluidRow(pickerInput("cntrt.site", "현장:", choices = search.total[[4]], selected = search.total[[4]], 
+                 fluidRow(pickerInput("analy.site", "현장:", choices = search.total[[4]], selected = search.total[[4]], 
                                       options = list(`actions-box` = TRUE, `selected-text-format` = "count > 2", `count-selected-text` = "선택: {0} / 전체: {1}", 
                                                      `select-all-text` = "전체 선택", `deselect-all-text` = "선택 해제", `live-search`  = TRUE), multiple = TRUE), 
-                          pickerInput("cntrt.coop", "협력사:", choices = search.total[[5]], selected = search.total[[5]], 
+                          pickerInput("analy.coop", "협력사:", choices = search.total[[5]], selected = search.total[[5]], 
                                       options = list(`actions-box` = TRUE, `selected-text-format` = "count > 2", `count-selected-text` = "선택: {0} / 전체: {1}", 
                                                      `select-all-text` = "전체 선택", `deselect-all-text` = "선택 해제", `live-search`  = TRUE), multiple = TRUE))
           ), 
           width = NULL)), 
         
         # Create a new row for table
-        DT::dataTableOutput("cntrt.stat"), 
+        DT::dataTableOutput("analy.stat"), 
         
         # Download button for table
         box(
-          div(style = "float: right;", disabled(downloadButton("cntrt.download", "다운로드"))), 
+          div(style = "float: right;", disabled(downloadButton("analy.download", "다운로드"))), 
           width = NULL
         )
       ), 
@@ -198,7 +214,7 @@ server <- function(input, output, session) {
   ### Set environment
   #########################################################
   # Check authority
-  result_auth <- secure_server(check_credentials = check_credentials(credentials))
+  auth <- secure_server(check_credentials = check_credentials(credentials))
   
   # Custom sidebar collapse
   runjs({'
@@ -222,11 +238,6 @@ server <- function(input, output, session) {
                            search.table = search.data[[length(search.data)]], 
                            search.data  = search.data[[length(search.data)]])
   
-  # Log of tab selection
-  observeEvent(input$tabs, {
-    print(input$tabs)
-  })
-  
   #########################################################
   ### Search tab
   #########################################################
@@ -248,6 +259,7 @@ server <- function(input, output, session) {
     # Render table
     output$search.table <- DT::renderDataTable(datatable(isolate(memory$search.table), extensions = "FixedHeader", editable = list(target = "cell", disable = list(columns = c(0))), 
                                                          options = list(fixedHeader = TRUE, lengthMenu = list(c(10, 25, 50, 100, -1), c("10", "25", "50", "100", "전체")), pageLength = 10), colnames = c('번호' = 1))
+                                               %>% (function (dt) {dt$x$data[[1]] <- as.numeric(dt$x$data[[1]]); return(dt)})
                                                %>% formatCurrency(c("자재비.단가", "노무비.단가", "경비.단가"), currency = ' ￦', interval = 3, mark = ',', digit = 0, before = FALSE))
     memory$search.table.proxy <- dataTableProxy("search.table")
   })
@@ -440,91 +452,162 @@ server <- function(input, output, session) {
   })
   
   #########################################################
-  ### Contract tab
+  ### Compare tab
+  #########################################################
+  
+  output$cmp.example1 <- downloadHandler(filename = paste0("2017-5-0544_NCK_그린빌더스", ".xlsx"), content = function(file) write.xlsx2(readRDS("DB/cmp.example.rds")[[1]], file, row.names = FALSE))
+  
+  output$cmp.example2 <- downloadHandler(filename = paste0("2017-5-0544_NCK_성현기공", ".xlsx"), content = function(file) write.xlsx2(readRDS("DB/cmp.example.rds")[[2]], file, row.names = FALSE))
+  
+  output$cmp.example3 <- downloadHandler(filename = paste0("2017-5-0544_NCK_유창이엔지니어링", ".xlsx"), content = function(file) write.xlsx2(readRDS("DB/cmp.example.rds")[[3]], file, row.names = FALSE))
+  
+  observeEvent(input$cmp.sheet, {
+    
+    memory$tempdata <- list()
+    text.temp <- NULL
+    memory$table.temp <- data.frame(matrix(nrow=0, ncol=(4 + nrow(input$cmp.sheet)*3)))
+    for(i in 1:nrow(input$cmp.sheet)){
+      memory$tempdata[[i]] <- match_class(read.xlsx2(input$cmp.sheet$datapath[i], sheetIndex = 1, stringsAsFactors = FALSE, colClasses = NA),  search.data[[input$search.index]])
+      memory$tempdata[[i]][,c(5:10)] <- apply(memory$tempdata[[i]][,c(5:10)], 2, function(x) {x[is.na(as.integer(x))] <- 0
+      return(x)})
+      
+      
+      table.temp.temp <- cbind(memory$tempdata[[i]][ ,c(1, 3)], 
+                               mat.or.vec(nr=nrow(memory$tempdata[[i]]), nc=(i - 1)), 
+                               memory$tempdata[[i]][,6], 
+                               mat.or.vec(nr=nrow(memory$tempdata[[i]]), nc=(nrow(input$cmp.sheet) - i)),
+                               mat.or.vec(nr=nrow(memory$tempdata[[i]]), nc=(i - 1)), 
+                               memory$tempdata[[i]][,8], 
+                               mat.or.vec(nr=nrow(memory$tempdata[[i]]), nc=(nrow(input$cmp.sheet) - i)),
+                               mat.or.vec(nr=nrow(memory$tempdata[[i]]), nc=(i - 1)), 
+                               memory$tempdata[[i]][,10], 
+                               mat.or.vec(nr=nrow(memory$tempdata[[i]]), nc=(nrow(input$cmp.sheet) - i)), i, c(1:nrow(memory$tempdata[[i]])))
+      colnames(table.temp.temp) <- colnames(memory$table.temp)
+      memory$table.temp <- data.frame(rbind(memory$table.temp, table.temp.temp))
+      memory$table.temp[,-c(1,2)][is.na(memory$table.temp[,-c(1,2)])] <- 0
+      text.temp <- paste0(text.temp, "견적서 ", i, ": ", stringi::stri_extract_first(str = input$cmp.sheet[i, 1], regex = ".*(?=\\.)"), "</br>")
+      
+    }
+    
+    
+    output$cmp.text <- renderText({text.temp})
+    memory$table.temp <- match_table(memory$table.temp,memory$tempdata)
+    table.show <- data.frame(memory$table.temp[,c(1:(2+nrow(input$cmp.sheet)*3))])
+    colnames(table.show) <- c('대분류', '규격', paste('자재비 단가', 1:nrow(input$cmp.sheet)), paste('노무비 단가', 1:nrow(input$cmp.sheet)), paste('경비 단가', 1:nrow(input$cmp.sheet)))
+    rownames(table.show) <- c(1:nrow(table.show))
+    output$cmp.table <- DT::renderDataTable(datatable(table.show, extensions = "FixedHeader", editable = list(target = "cell", disable = list(columns = c(0, 3:ncol(table.show)))),
+                                                      options = list(fixedHeader = TRUE, lengthMenu = list(c(10, 25, 50, 100, -1), c("10", "25", "50", "100", "전체")), pageLength = 10))
+                                            %>% formatCurrency(c(3:ncol(table.show)), currency = ' ￦', interval = 3, mark = ',', digit = 0, before = FALSE))
+    memory$cmp.table.proxy <- dataTableProxy("cmp.table")
+  }
+  )
+  
+  # Edit table
+  observeEvent(input$cmp.table_cell_edit, {
+    
+    # Replace data of sheet
+    cmp.edited <- input$cmp.table_cell_edit
+    diff <- nrow(memory$table.temp)
+    memory$table.temp[cmp.edited$row, cmp.edited$col] <- DT::coerceValue(cmp.edited$value, memory$table.temp[cmp.edited$row, cmp.edited$col])
+    memory$table.temp <- match_table(memory$table.temp,memory$tempdata)
+    table.show <- data.frame(memory$table.temp[,c(1:(2+nrow(input$cmp.sheet)*3))])
+    colnames(table.show) <- c('대분류', '규격', paste('자재비 단가', 1:nrow(input$cmp.sheet)), paste('노무비 단가', 1:nrow(input$cmp.sheet)), paste('경비 단가', 1:nrow(input$cmp.sheet)))
+    rownames(table.show) <- c(1:nrow(table.show))
+    if(nrow(table.show) !=  diff){
+      output$cmp.table <- DT::renderDataTable(datatable(table.show, extensions = "FixedHeader", editable = list(target = "cell", disable = list(columns = c(0, 3:ncol(table.show)))),
+                                                        options = list(fixedHeader = TRUE, lengthMenu = list(c(10, 25, 50, 100, -1), c("10", "25", "50", "100", "전체")), pageLength = 10))
+                                              %>% formatCurrency(c(3:ncol(table.show)), currency = ' ￦', interval = 3, mark = ',', digit = 0, before = FALSE))
+    } else{
+      replaceData(memory$cmp.table.proxy, table.show, resetPaging = FALSE)
+    }
+  })
+  
+  #########################################################
+  ### Anaysis tab
   #########################################################
   # Download example sheet
-  output$cntrt.example <- downloadHandler(filename = paste0("2019-5-1808_동우화인켐 평택_세현이엔지_계약", ".xlsx"), 
-                                          content = function(file) write.xlsx2(readRDS("DB/cntrt.example.rds"), file, row.names = FALSE))
+  output$analy.example <- downloadHandler(filename = paste0("2019-5-1808_동우화인켐 평택_세현이엔지_계약", ".xlsx"), 
+                                          content = function(file) write.xlsx2(readRDS("DB/analy.example.rds"), file, row.names = FALSE))
   
   # Analyze
-  observeEvent(input$cntrt.sheet, {
-    disable("cntrt.download")
+  observeEvent(input$analy.sheet, {
+    disable("analy.download")
     
     # Read uploaded sheet
-    memory$cntrt.sheet <- read.xlsx2(input$cntrt.sheet$datapath, sheetIndex = 1, stringsAsFactors = FALSE, colClasses = NA) %>% match_class(search.data[[length(search.data)]])
+    memory$analy.sheet <- read.xlsx2(input$analy.sheet$datapath, sheetIndex = 1, stringsAsFactors = FALSE, colClasses = NA) %>% match_class(search.data[[length(search.data)]])
     
     # Make analytics using previous contract data
-    memory$cntrt.stat <- make_stat(memory$cntrt.sheet, search.data[[length(search.data)]], 
-                                   options = list(sign = input$cntrt.sign, year = input$cntrt.year, site = input$cntrt.site, coop = input$cntrt.coop), Download = FALSE)
-    rownames(memory$cntrt.stat) <- as.numeric(1:nrow(memory$cntrt.stat))
+    memory$analy.stat <- make_stat(memory$analy.sheet, search.data[[length(search.data)]], 
+                                   options = list(sign = input$analy.sign, year = input$analy.year, site = input$analy.site, coop = input$analy.coop), Download = FALSE)
+    rownames(memory$analy.stat) <- as.numeric(1:nrow(memory$analy.stat))
     
     # Render stat
-    output$cntrt.stat <- DT::renderDataTable(datatable(isolate(memory$cntrt.stat), extensions = "FixedHeader", 
+    output$analy.stat <- DT::renderDataTable(datatable(isolate(memory$analy.stat), extensions = "FixedHeader", 
                                                        editable = list(target = "cell", disable = list(columns = c(0, 4:9))), escape = FALSE,
                                                        options = list(fixedHeader = TRUE, lengthMenu = list(c(10, 25, 50, 100, -1), c("10", "25", "50", "100", "전체")), 
-                                                                      pageLength = -1), colnames = c('번호' = 1)) 
+                                                                      pageLength = -1), colnames = c('번호' = 1))
                                              %>% (function (dt) {dt$x$data[[1]] <- as.numeric(dt$x$data[[1]]); return(dt)})
                                              %>% formatCurrency(c("자재비.단가", "가격차이"), currency = ' ￦', interval = 3, mark = ',', digit = 0, before = FALSE)
                                              %>% formatStyle(columns = "자재비.단가", valueColumns = "가격차이", color = JS("value < 0 ? 'blue' : (value > 0 ? 'red' : 'green')")))
-    memory$cntrt.stat.proxy <- dataTableProxy("cntrt.stat")
+    memory$analy.stat.proxy <- dataTableProxy("analy.stat")
     
     # Download stat
-    output$cntrt.download <- downloadHandler(filename = paste0(input$cntrt.sheet$name, "_분석", ".xlsx"), 
-                                             content = function(file) write.xlsx2(make_stat(memory$cntrt.sheet, search.data[[length(search.data)]], 
-                                                                                            options = list(sign = input$cntrt.sign, year = input$cntrt.year, site = input$cntrt.site, coop = input$cntrt.coop), Download = TRUE), 
+    output$analy.download <- downloadHandler(filename = paste0(input$analy.sheet$name, "_분석", ".xlsx"), 
+                                             content = function(file) write.xlsx2(make_stat(memory$analy.sheet, search.data[[length(search.data)]], 
+                                                                                            options = list(sign = input$analy.sign, year = input$analy.year, site = input$analy.site, coop = input$analy.coop), Download = TRUE), 
                                                                                   file, row.names = FALSE))
-    enable("cntrt.download")
+    enable("analy.download")
   })
   
   # Options changed
-  observeEvent(c(input$cntrt.sign, input$cntrt.year, input$cntrt.site, input$cntrt.coop), {
-    if (!is.null(memory$cntrt.stat.proxy)) {
-      disable("cntrt.download")
+  observeEvent(c(input$analy.sign, input$analy.year, input$analy.site, input$analy.coop), {
+    if (!is.null(memory$analy.stat.proxy)) {
+      disable("analy.download")
       
       # Make analytics using previous contract data
-      memory$cntrt.stat <- make_stat(memory$cntrt.sheet, search.data[[length(search.data)]], 
-                                     options = list(sign = input$cntrt.sign, year = input$cntrt.year, site = input$cntrt.site, coop = input$cntrt.coop), Download = FALSE)
+      memory$analy.stat <- make_stat(memory$analy.sheet, search.data[[length(search.data)]], 
+                                     options = list(sign = input$analy.sign, year = input$analy.year, site = input$analy.site, coop = input$analy.coop), Download = FALSE)
       
       # Reload stat
-      replaceData(memory$cntrt.stat.proxy, memory$cntrt.stat, resetPaging = FALSE)
+      replaceData(memory$analy.stat.proxy, memory$analy.stat, resetPaging = FALSE)
       
       # Download stat
-      output$cntrt.download <- downloadHandler(filename = paste0("기계약_분석", ".xlsx"), 
-                                               content = function(file) write.xlsx2(make_stat(memory$cntrt.sheet, search.data[[length(search.data)]], 
-                                                                                              options = list(sign = input$cntrt.sign, year = input$cntrt.year, site = input$cntrt.site, coop = input$cntrt.coop)), 
+      output$analy.download <- downloadHandler(filename = paste0("기계약_분석", ".xlsx"), 
+                                               content = function(file) write.xlsx2(make_stat(memory$analy.sheet, search.data[[length(search.data)]], 
+                                                                                              options = list(sign = input$analy.sign, year = input$analy.year, site = input$analy.site, coop = input$analy.coop)), 
                                                                                     file, row.names = FALSE))
-      enable("cntrt.download")
+      enable("analy.download")
     }
   })
   
   # Update options list
   observeEvent(memory$search.old$total, {
-    disable("cntrt.download")
+    disable("analy.download")
     
-    updateSliderInput(session, inputId = "cntrt.year", min = min(memory$search.old$total[[3]]), max = max(memory$search.old$total[[3]]), 
+    updateSliderInput(session, inputId = "analy.year", min = min(memory$search.old$total[[3]]), max = max(memory$search.old$total[[3]]), 
                       value = c(min(memory$search.old$total[[3]]), max(memory$search.old$total[[3]])))
-    updatePickerInput(session, inputId = "cntrt.site", choices = memory$search.old$total[[4]], selected = memory$search.old$total[[4]])
-    updatePickerInput(session, inputId = "cntrt.coop", choices = memory$search.old$total[[5]], selected = memory$search.old$total[[5]])
+    updatePickerInput(session, inputId = "analy.site", choices = memory$search.old$total[[4]], selected = memory$search.old$total[[4]])
+    updatePickerInput(session, inputId = "analy.coop", choices = memory$search.old$total[[5]], selected = memory$search.old$total[[5]])
     
-    enable("cntrt.download")
+    enable("analy.download")
   })
   
   # Edit table
-  observeEvent(input$cntrt.stat_cell_edit, {
-    disable("cntrt.download")
+  observeEvent(input$analy.stat_cell_edit, {
+    disable("analy.download")
     
     # Replace data of sheet
-    cntrt.edited <- input$cntrt.stat_cell_edit
-    memory$cntrt.sheet[cntrt.edited$row, cntrt.edited$col] <- DT::coerceValue(cntrt.edited$value, memory$cntrt.sheet[cntrt.edited$row, cntrt.edited$col])
+    analy.edited <- input$analy.stat_cell_edit
+    memory$analy.sheet[analy.edited$row, analy.edited$col] <- DT::coerceValue(analy.edited$value, memory$analy.sheet[analy.edited$row, analy.edited$col])
     
     # Reload stat
-    if (cntrt.edited$col == 2)
-      memory$cntrt.sheet[cntrt.edited$row, ] <- match_class(memory$cntrt.sheet[cntrt.edited$row, -c(1)], search.data[[length(search.data)]], 
-                                                            options = list(sign = input$cntrt.sign, year = input$cntrt.year, site = input$cntrt.site, coop = input$cntrt.coop))
-    memory$cntrt.stat[cntrt.edited$row, ] <- make_stat(memory$cntrt.sheet[cntrt.edited$row, ], search.data[[length(search.data)]], 
-                                                       options = list(sign = input$cntrt.sign, year = input$cntrt.year, site = input$cntrt.site, coop = input$cntrt.coop), Download = FALSE)
-    replaceData(memory$cntrt.stat.proxy, memory$cntrt.stat, resetPaging = FALSE)
-    enable("cntrt.download")
+    if (analy.edited$col == 2)
+      memory$analy.sheet[analy.edited$row, ] <- match_class(memory$analy.sheet[analy.edited$row, -c(1)], search.data[[length(search.data)]], 
+                                                            options = list(sign = input$analy.sign, year = input$analy.year, site = input$analy.site, coop = input$analy.coop))
+    memory$analy.stat[analy.edited$row, ] <- make_stat(memory$analy.sheet[analy.edited$row, ], search.data[[length(search.data)]], 
+                                                       options = list(sign = input$analy.sign, year = input$analy.year, site = input$analy.site, coop = input$analy.coop), Download = FALSE)
+    replaceData(memory$analy.stat.proxy, memory$analy.stat, resetPaging = FALSE)
+    enable("analy.download")
   })
   
   #########################################################
@@ -613,11 +696,12 @@ server <- function(input, output, session) {
   })
   
   #########################################################
-  ### Contract tab
+  ### Log tab
   #########################################################
   # Render log
-  output$log <- renderText("2020-09-19T16:54:41.312502+00:00 shinyapps[2669782]: The following objects are masked from ‘package:stats’:")
-  
+  output$log <- renderText(paste0(input$getIP$ip, " [", format(Sys.time(), tz = "Asia/Seoul"), "] ", reactiveValuesToList(auth), ": Access", "\n", 
+                                  input$getIP$ip, " [", format(Sys.time(), tz = "Asia/Seoul"), "] ", reactiveValuesToList(auth), ": Select ", "search", "\n", 
+                                  input$getIP$ip, " [", format(Sys.time(), tz = "Asia/Seoul"), "] ", reactiveValuesToList(auth), ": Change ", "search.table[3, 1]", " to ", "덕트"))
 }
 
 #########################################################################################################################
@@ -634,8 +718,9 @@ set_labels(
 )
 
 # Encrypt ui
-ui <- secure_app(tags_top = tags$div(tags$head(includeHTML(("google-analytics.html"))), tags$img(src = "https://www.shinsungeng.com/resources/images/common/logo.png"), tags$h5(paste0("ID: ", credentials$user[1], " / PW: ", credentials$password[1]))), 
-                 ui, 
+ui <- secure_app(tags_top = tags$div(tags$img(src = "https://www.shinsungeng.com/resources/images/common/logo.png"), 
+                                     tags$h5(paste0("ID: ", credentials$user[1], " / PW: ", credentials$password[1]))), 
+                 ui = ui, 
                  theme = shinytheme("flatly"))
 
 # Run app

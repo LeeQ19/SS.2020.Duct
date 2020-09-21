@@ -281,3 +281,41 @@ table_making <- function(path, session = session){
   }
   return(result)
 }
+
+match_table <- function(table, data){
+  table[,1] <- as.factor(as.character(table[,1]))
+  table[,2] <- as.factor(as.character(table[,2]))
+  fileinfo <- c(ncol(table)-1, ncol(table))
+  while(sum(duplicated(table[, c(1, 2)])) > 0){
+    from <- which(duplicated(table[,c(1:2)]))[1]
+    temp <- table[-from, ]
+    to <- which(temp[ ,1] == table[from, 1] & temp[ ,2] == table[from, 2])[1]
+    
+    filefrom <- strsplit(as.character(table[from, fileinfo[1]]), split=",")[[1]]
+    rowfrom <- strsplit(as.character(table[from, fileinfo[2]]), split=",")[[1]]
+    fileto <- strsplit(as.character(temp[to, fileinfo[1]]), split=",")[[1]]
+    rowto <- strsplit(as.character(temp[to, fileinfo[2]]), split=",")[[1]]
+    
+    valuetable <- mat.or.vec(nr = length(filefrom)+length(fileto), nc = (1 + ncol(table) - 4))
+    
+    for(i in 1:length(filefrom)){
+      filetemp <- as.integer(filefrom[i])
+      rowtemp <- as.integer(rowfrom[i])
+      col <- seq(from = (1 + filetemp), by = length(data), length.out = 3)
+      valuetable[i, c(1, col)] <- as.integer(valuetable[i, c(1, col)]) + as.integer(data[[filetemp]][rowtemp, c(5, 6, 8, 10)])
+    }
+    for(i in 1:length(fileto)){
+      filetemp <- as.integer(fileto[i])
+      rowtemp <- as.integer(rowto[i])
+      col <- seq(from = (1+filetemp), by = length(data), length.out = 3)
+      valuetable[(length(filefrom)+i), c(1, col)] <- as.integer(valuetable[(length(filefrom)+i), c(1, col)]) + as.integer(data[[filetemp]][rowtemp, c(5, 6, 8, 10)])
+    }
+    temp[to, -c(1:2, fileinfo)] <-  as.integer(colSums(valuetable[ ,1] * valuetable[ ,-1])/sum(valuetable[ ,1]))
+    temp[to, fileinfo] <- paste0(temp[to, fileinfo], ',', table[from, fileinfo])
+    table <- temp
+  }
+  table[,1] <- as.character(table[,1])
+  table[,2] <- as.character(table[,2])
+  return(table)
+}
+

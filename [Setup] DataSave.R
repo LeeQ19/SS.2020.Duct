@@ -14,8 +14,8 @@ search.data[[format(Sys.time(), tz = "Asia/Seoul")]] <- data
 saveRDS(search.data, file = "DB/search.data.rds")
 
 # cntrt.example
-example <- read.csv("DB/ContractExample.csv", stringsAsFactors = FALSE, fileEncoding = "euc-kr")
-saveRDS(example, file = "DB/cntrt.example.rds")
+example <- read.csv("DB/AnalysisExample.csv", stringsAsFactors = FALSE, fileEncoding = "euc-kr")
+saveRDS(example, file = "DB/analy.example.rds")
 
 ### Test
 # rm(list = ls())
