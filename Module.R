@@ -95,9 +95,27 @@ make_stat <- function (sheet, data, options = NULL, Download = TRUE) {
   return(stat)
 }
 
+# Declare function to save log
+save_log <- function (logs, auth, action, object = NA, to = NA) {
+  substr(action, 1, 1) <- toupper(substr(action, 1, 1))
+  logs <- rbind(logs, c(format(Sys.time(), tz = "Asia/Seoul"), reactiveValuesToList(auth)$user, action, object, to))
+  saveRDS(logs, file = "DB/logs.rds")
+  return(logs)
+}
+
 # Declare function to print logs
-print_log <- function (log) {
-  log <- replace(log, is.na(log), "")
+print_log <- function (logs) {
+  text <- c()
+  for (i in 1:nrow(logs)) {
+    log <- logs[i, ]
+    if (is.na(log$object))
+      text <- c(text, paste(paste0("[", log[1], "]"), paste0(log[2], ":"), log[3]))
+    else if (is.na(log$to))
+      text <- c(text, paste(paste0("[", log[1], "]"), paste0(log[2], ":"), log[3], log[4]))
+    else
+      text <- c(text, paste(paste0("[", log[1], "]"), paste0(log[2], ":"), log[3], log[4], "to", log[5]))
+  }
+  return(paste0(text, collapse = "\n"))
 }
 
 # Declare function to read pdf and extract data

@@ -215,6 +215,7 @@ server <- function(input, output, session) {
   # Check authority
   auth <- secure_server(check_credentials = check_credentials(credentials))
   
+  
   # Custom sidebar collapse
   runjs({'
           var el2 = document.querySelector(".skin-blue");
@@ -233,9 +234,21 @@ server <- function(input, output, session) {
   '}))
   
   # Define memory
-  memory <- reactiveValues(search.old   = list(choices = search.total, selected = search.total, total = search.total), 
+  memory <- reactiveValues(logs = readRDS("DB/logs.rds"), 
+                           search.old   = list(choices = search.total, selected = search.total, total = search.total), 
                            search.table = search.data[[length(search.data)]], 
                            search.data  = search.data[[length(search.data)]])
+  
+  # Log in
+  observeEvent(auth, {
+    if (!is.null(reactiveValuesToList(auth)$user))
+      memory$logs <- save_log(memory$logs, auth, "login")
+  })
+  
+  # Tab select
+  observeEvent(input$tabs, {
+    memory$logs <- save_log(memory$logs, auth, "select", object = input$tabs)
+  })
   
   #########################################################
   ### Search tab
@@ -279,6 +292,7 @@ server <- function(input, output, session) {
     
     enable("search.save")
     enable("search.discard")
+    memory$logs <- save_log(memory$logs, auth, "edit", object = paste0("search.table[", search.edit.temp$row, ", ", search.edit.temp$col, "]"), to = search.edit.temp$value)
   })
   
   # Edit archive - display popup message
@@ -508,6 +522,7 @@ server <- function(input, output, session) {
     rownames(table.show) <- c(1:nrow(table.show))
     output$cmp.table <- DT::renderDataTable(datatable(table.show, extensions = "FixedHeader", editable = list(target = "cell", disable = list(columns = c(0, 3:ncol(table.show)))),
                                                       options = list(fixedHeader = TRUE, lengthMenu = list(c(10, 25, 50, 100, -1), c("10", "25", "50", "100", "전체")), pageLength = 10))
+                                            %>% formatStyle(c("자재비 단가 1", "노무비 단가 1", "경비 단가 1"), borderLeft = "solid 2px")
                                             %>% formatCurrency(c(3:ncol(table.show)), currency = ' ￦', interval = 3, mark = ',', digit = 0, before = FALSE))
     memory$cmp.table.proxy <- dataTableProxy("cmp.table")
   }
@@ -624,24 +639,42 @@ server <- function(input, output, session) {
   #########################################################
   ### labor tab
   #########################################################
+  
+  observeEvent(input$labor.index, {
+    memory$labor.data <- labor.data[[input$labor.index]]
+  })
+  
   # Update select box contents
   observeEvent(input$labor.chapter, {
-    updateSelectInput(session, inputId = "labor.detail", choices = names(labor.data[[input$labor.index]][[input$labor.chapter]]))
+    updateSelectInput(session, inputId = "labor.detail", choices = names(memory$labor.data[[input$labor.chapter]]))
   })
   
   # Update select box contents
   observeEvent(input$labor.detail, {
-    output$labor.table <- DT::renderDataTable(datatable(labor.data[[input$labor.index]][[input$labor.chapter]][[input$labor.detail]]))
+    output$labor.table <- DT::renderDataTable(datatable(memory$labor.data[[input$labor.chapter]][[input$labor.detail]], editable = list(target = "cell", disable = list(columns = c(0)))))
+    memory$labor.table.proxy <- dataTableProxy("labor.table")
   })
   
   
   # Upload data
   observeEvent(input$labor.upload, {
     disable("labor.update")
-    memory$labor.sheet <- read_pdf(input$labor.upload$datapath)
+    memory$labor.data <- table_making(input$labor.upload$datapath)
     updateProgressBar(session = session, id = "labor.progress", value = 100)
+    updateSelectInput(session, inputId = "labor.chapter", choices = names(memory$labor.data), selected = names(memory$labor.data)[1])
     enable("labor.update")
     enable("labor.reset")
+  })
+  
+  # Edit table
+  observeEvent(input$labor.table_cell_edit, {
+    disable("labor.update")
+    # Replace data of sheet
+    labor.edited <- input$labor.table_cell_edit
+    memory$labor.data[[input$labor.chapter]][[input$labor.detail]][labor.edited$row, labor.edited$col] <- DT::coerceValue(labor.edited$value, 
+                                                                                                                          memory$labor.data[[input$labor.chapter]][[input$labor.detail]][labor.edited$row, labor.edited$col])
+    replaceData(memory$labor.table.proxy, memory$labor.data[[input$labor.chapter]][[input$labor.detail]], resetPaging = FALSE)
+    enable("labor.update")
   })
   
   # Update archive - display popup message
@@ -653,7 +686,7 @@ server <- function(input, output, session) {
   # Update archive - confirm
   observeEvent(memory$response$labor.update, {
     if (memory$response$labor.update) {
-      labor.data[[format(Sys.time(), tz = "Asia/Seoul")]] <<- memory$labor.sheet
+      labor.data[[format(Sys.time(), tz = "Asia/Seoul")]] <<- memory$labor.data
       saveRDS(labor.data, file = "DB/labor.data.rds")
       updateSelectInput(session, inputId = "labor.index", choices = rev(names(labor.data)))
       enable("labor.remove")
@@ -710,9 +743,9 @@ server <- function(input, output, session) {
   ### Log tab
   #########################################################
   # Render log
-  output$log <- renderText(paste0("\n", "[", format(Sys.time(), tz = "Asia/Seoul"), "] ", reactiveValuesToList(auth)$user, ": Access", 
-                                  "\n", "[", format(Sys.time(), tz = "Asia/Seoul"), "] ", reactiveValuesToList(auth)$user, ": Select ", "search", 
-                                  "\n", "[", format(Sys.time(), tz = "Asia/Seoul"), "] ", reactiveValuesToList(auth)$user, ": Change ", "search.table[3, 1]", " to ", "덕트"))
+  observeEvent(memory$logs, {
+  output$log <- renderText(print_log(memory$logs))
+  })
 }
 
 #########################################################################################################################
@@ -721,17 +754,17 @@ server <- function(input, output, session) {
 # Change language
 set_labels(
   language = "en", 
-  "Please authenticate" = "덕트 구매지원 시스템",
-  "Username:" = "ID",
-  "Password:" = "PW",
+  "Please authenticate" = "구매지원 시스템", 
+  "Username:" = "ID", 
+  "Password:" = "PW", 
   "Login" = "로그인", 
   "Username or password are incorrect" = "올바르지 않은 계정입니다."
 )
 
 # Encrypt ui
-ui <- secure_app(tags_top = tags$div(tags$img(src = "https://www.shinsungeng.com/resources/images/common/logo.png"), 
-                                     tags$h5("ID: admin / PW: ss")), 
+ui <- secure_app(tags_top = tags$div(tags$img(src = "https://www.shinsungeng.com/resources/images/common/logo.png")), 
                  ui = ui, 
+                 tags_bottom = tags$div(tags$p("ID: admin", tags$p("PW: ss"))), 
                  theme = shinytheme("flatly"))
 
 # Run app
