@@ -1,3 +1,19 @@
+# Declare function to make indexes of data to filter
+make_index <- function (data, labels) {
+  n <- nrow(data)
+  index <- list()
+  for (label in labels) {
+    x <- as.character(data[[label]])
+    for (i in 1:n) {
+      if (is.na(x[i]) | x[i] == "")
+        index[[label]][["없음"]] <- c(index[[label]][["없음"]], i)
+      else
+        index[[label]][[x[i]]] <- c(index[[label]][[x[i]]], i)
+    }
+  }
+  return(index)
+}
+
 # Declare function to update picker input by selected data
 update_picker <- function (session, data, total, choices.old, labels, id, selected) {
   con1 <- sapply(selected, function (x) length(x) == 0)
@@ -19,12 +35,40 @@ update_picker <- function (session, data, total, choices.old, labels, id, select
   return(list(choices = choices, selected = selected.new, total = total))
 }
 
+# Declare function to update picker input by selected data
+update_picker2 <- function (session, id, data, index, selected, old) {
+  n.filter <- length(id)
+  label <- names(index)
+  choices.new <- old$choices
+  selected.new <- selected
+  if (any(sapply(selected, length) == 0)) 
+    return(list(choices = choices.new, selected = selected.new))
+  index.each <- lapply(1:n.filter, function (i) {unlist(index[[i]][selected[[i]]], use.names = FALSE)})
+  for (i in c(1:n.filter)) {
+    if (all(sapply(c(1:n.filter)[-i], function (j) {length(selected[[j]]) == length(old$choices[[j]])}))) {
+      choices.temp <- sort(names(index[[i]]))
+    } else {
+      index.temp <- sort(Reduce(intersect, index.each[-i]))
+      choices.temp <- unique(data[[label[i]]][index.temp])
+      choices.temp[which(choices.temp == "")] <- "없음"
+      choices.temp <- sort(choices.temp)
+    }
+    if (length(old$selected[[i]]) == length(old$choices[[i]])) 
+      selected.temp <- choices.temp
+    else 
+      selected.temp <- intersect(selected[[i]], choices.temp)
+    updatePickerInput(session, inputId = id[i], choices = choices.temp, selected = selected.temp)
+    choices.new[[i]] <- choices.temp
+    selected.new[[i]] <- selected.temp
+  }
+  return(list(choices = choices.new, selected = selected.new))
+}
+
 # Declare function to make table by filtering data
-make_table <- function (data, labels, selected) {
-  table <- data
-  for (i in 1:length(labels))
-    table <- table[table[[labels[i]]] %in% selected[[i]], ]
-  return(table)
+make_table <- function (data, index, selected) {
+  index.each <- lapply(1:length(index), function (i) {unlist(index[[i]][selected[[i]]], use.names = FALSE)})
+  index.res <- sort(Reduce(intersect, index.each))
+  return(data[index.res, ])
 }
 
 # Declare function to match classes of product by name and standard
@@ -97,6 +141,7 @@ make_stat <- function (sheet, data, options = NULL, Download = TRUE) {
 
 # Declare function to save log
 save_log <- function (logs, auth, action, object = NA, to = NA) {
+  if (is.null(reactiveValuesToList(auth)$user)) return(logs)
   substr(action, 1, 1) <- toupper(substr(action, 1, 1))
   logs <- rbind(logs, c(format(Sys.time(), tz = "Asia/Seoul"), reactiveValuesToList(auth)$user, action, object, to))
   saveRDS(logs, file = "DB/logs.rds")
@@ -147,10 +192,6 @@ read_pdf <- function (path, session = session) {
             }
           }
         }
-        
-        
-        
-        
         if(sum(tmp_data[[i]][ ,6] == chapter) > 0 && sum(tmp_data[[i]][(which(tmp_data[[i]][ ,6] == chapter)-1), 3] == main_main_x) > 0){
           duct_list <- i
           
