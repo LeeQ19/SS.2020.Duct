@@ -7,17 +7,19 @@ source("Global.R", encoding = "UTF-8")
 # Load function
 source("Module.R", encoding = "UTF-8")
 
+# Set environment
 options(shiny.maxRequestSize = 30*1024^2)
 
 # data.frame with credentials info
 credentials <- readRDS("DB/credentials.rds")
 
 # Load data
-search.data   <- readRDS("DB/search.data.rds")
-search.labels <- c("대분류", "규격", "연도", "현장", "협력사", "계약번호", "계약여부")
-search.id     <- c("search.major", "search.std", "search.year", "search.site", "search.coop", "search.num", "search.analy")
-search.total  <- sapply(search.labels, function (x) sort(unique(search.data[[length(search.data)]][[x]])))
-search.width  <- c(2, 2, 1, 2, 2, 2, 1)
+search.data    <- readRDS("DB/search.data.rds")
+search.index   <- readRDS("DB/search.index.rds")
+search.default <- length(search.index)
+search.label   <- names(search.index[[search.default]])
+search.id      <- c("search.major", "search.std", "search.year", "search.site", "search.coop", "search.num", "search.analy")
+search.width   <- c(2, 2, 1, 2, 2, 2, 1)
 
 labor.data <- readRDS("DB/labor.data.rds")
 
@@ -40,16 +42,15 @@ ui <- dashboardPage(
       menuItem("견적서 비교", tabName = "cmp",    icon = icon("chart-bar")), 
       menuItem("견적서 검토", tabName = "analy",  icon = icon("dashboard")), 
       menuItem("품셈",        tabName = "labor",  icon = icon("file-invoice")), 
-      menuItem("사용자 로그", tabName = "log",  icon = icon("list"))
+      menuItem("사용자 로그", tabName = "log",    icon = icon("list"))
     ), 
-    tags$footer("ver 3.0.0", align = "right", style = "font-size: 15px; position:absolute; bottom:0; width:100%; padding:10px")
+    tags$footer("ver 3.2.0", align = "right", style = "font-size: 15px; position:absolute; bottom:0; width:100%; padding:10px")
   ), 
   
   #########################################################
   ### Body content
   #########################################################
   dashboardBody(
-    # tags$head(includeHTML(("google-analytics.html"))), 
     useShinyjs(), 
     useShinyalert(), 
     tabItems(
@@ -59,12 +60,16 @@ ui <- dashboardPage(
       tabItem(
         tabName = "search", 
         # Select box with check boxes (excel-like filter)
-        fluidRow(box(
-          lapply(c(1:7), function (i) column(search.width[i], 
-                                             pickerInput(search.id[i], paste0(search.labels[i], ":"), choices = search.total[[i]], selected = search.total[[i]], 
-                                                         options = list(`actions-box` = TRUE, `selected-text-format` = "count > 2", `count-selected-text` = "선택: {0} / 전체: {1}", 
-                                                                        `select-all-text` = "전체 선택", `deselect-all-text` = "선택 해제", `live-search`  = TRUE), multiple = TRUE))), 
-          width = NULL)),
+        fluidRow(
+          box(
+            lapply(c(1:7), function (i) column(search.width[i], 
+                                               pickerInput(search.id[i], paste0(search.label[i], ":"), 
+                                                           choices = sort(names(search.index[[search.default]][[i]])), selected = sort(names(search.index[[search.default]][[i]])), 
+                                                           options = list(`actions-box` = TRUE, `selected-text-format` = "count > 2", `count-selected-text` = "선택: {0} / 전체: {1}", 
+                                                                          `select-all-text` = "전체 선택", `deselect-all-text` = "선택 해제", `live-search`  = TRUE), multiple = TRUE))), 
+            width = NULL
+          )
+        ),
         
         # Create a new row for table
         DT::dataTableOutput("search.table"), 
@@ -77,18 +82,15 @@ ui <- dashboardPage(
                    div(style = "margin-top: -20px;"), 
                    disabled(actionButton("search.update", "업데이트", icon = icon("cloud-upload"))), 
                    div(style = "float: right;", 
-                       disabled(actionButton("search.reset", "초기화", icon = icon("undo")))
-                   )
-            ), 
+                       disabled(actionButton("search.reset", "초기화", icon = icon("undo"))))), 
             column(6), 
             column(3, 
-                   selectInput("search.index", "데이터 선택", choices = rev(names(search.data))), 
+                   selectInput("search.list", "데이터 선택", choices = rev(names(search.data))), 
                    disabled(actionButton("search.save", "수정내용 저장", icon = icon("save"))), 
                    disabled(actionButton("search.discard", "수정내용 초기화", icon = icon("undo"))), 
                    div(style = "float: right;", 
                        downloadButton("search.download", "다운로드"), 
-                       actionButton("search.remove", "데이터 삭제", icon = icon("trash")))
-            ), 
+                       actionButton("search.remove", "데이터 삭제", icon = icon("trash")))), 
             width = NULL
           )
         ), 
@@ -103,20 +105,21 @@ ui <- dashboardPage(
       tabItem(
         tabName = "cmp",
         # Upload file
-        fluidRow(box(
-          # Input: select a file
-          column(6, 
-                 fileInput("cmp.sheet", "엑셀 파일 업로드", accept = ".xlsx", multiple = TRUE), 
-                 div(style = "margin-top: -20px;"), 
-                 downloadButton("cmp.example1", "예시파일1"), 
-                 downloadButton("cmp.example2", "예시파일2"), 
-                 downloadButton("cmp.example3", "예시파일3"), 
-          ), 
-          column(6, 
-                 div(style = "margin-top: 22px;"), 
-                 htmlOutput("cmp.text")
-          ), 
-          width = NULL)),
+        fluidRow(
+          box(
+            # Input: select a file
+            column(6, 
+                   fileInput("cmp.sheet", "엑셀 파일 업로드", accept = ".xlsx", multiple = TRUE), 
+                   div(style = "margin-top: -20px;"), 
+                   downloadButton("cmp.example1", "예시파일1"), 
+                   downloadButton("cmp.example2", "예시파일2"), 
+                   downloadButton("cmp.example3", "예시파일3")), 
+            column(6, 
+                   div(style = "margin-top: 22px;"), 
+                   htmlOutput("cmp.text")), 
+            width = NULL
+          )
+        ),
         DT::dataTableOutput("cmp.table")
       ), 
       
@@ -126,28 +129,33 @@ ui <- dashboardPage(
       tabItem(
         tabName = "analy", 
         # Upload file
-        fluidRow(box(
-          # Input: select a file
-          column(6, 
-                 fileInput("analy.sheet", "엑셀 파일 업로드", accept = ".xlsx"), 
-                 downloadButton("analy.example", "예시파일")
-          ), 
-          
-          # Options
-          column(2, 
-                 div(style = "margin-top: 20px; margin-bottom: 30px;", checkboxInput("analy.sign", "계약건 한정",   value = FALSE)), 
-                 tags$style(".irs-grid-pol.small {height: 0px;}"), 
-                 sliderInput("analy.year", "분석기간", min = min(search.total[[3]]), max = max(search.total[[3]]), value = c(min(search.total[[3]]), max(search.total[[3]])), step = 1, width = "75%", sep = "", post = "년")
-          ),  
-          column(1, 
-                 fluidRow(pickerInput("analy.site", "현장:", choices = search.total[[4]], selected = search.total[[4]], 
-                                      options = list(`actions-box` = TRUE, `selected-text-format` = "count > 2", `count-selected-text` = "선택: {0} / 전체: {1}", 
-                                                     `select-all-text` = "전체 선택", `deselect-all-text` = "선택 해제", `live-search`  = TRUE), multiple = TRUE), 
-                          pickerInput("analy.coop", "협력사:", choices = search.total[[5]], selected = search.total[[5]], 
-                                      options = list(`actions-box` = TRUE, `selected-text-format` = "count > 2", `count-selected-text` = "선택: {0} / 전체: {1}", 
-                                                     `select-all-text` = "전체 선택", `deselect-all-text` = "선택 해제", `live-search`  = TRUE), multiple = TRUE))
-          ), 
-          width = NULL)), 
+        fluidRow(
+          box(
+            # Input: select a file
+            column(6, 
+                   fileInput("analy.sheet", "엑셀 파일 업로드", accept = ".xlsx"), 
+                   downloadButton("analy.example", "예시파일")), 
+            
+            # Options
+            column(2, 
+                   div(style = "margin-top: 20px; margin-bottom: 30px;", checkboxInput("analy.sign", "계약건 한정",   value = FALSE)), 
+                   tags$style(".irs-grid-pol.small {height: 0px;}"), 
+                   sliderInput("analy.year", "분석기간", 
+                               min = min(as.integer(names(search.index[[search.default]][["연도"]]))), max = max(as.integer(names(search.index[[search.default]][["연도"]]))), 
+                               value = c(min(as.integer(names(search.index[[search.default]][["연도"]]))), max(as.integer(names(search.index[[search.default]][["연도"]])))), 
+                               step = 1, width = "75%", sep = "", post = "년")),  
+            column(1, 
+                   fluidRow(pickerInput("analy.site", "현장:", 
+                                        choices = sort(names(search.index[[search.default]][["현장"]])), selected = sort(names(search.index[[search.default]][["현장"]])), 
+                                        options = list(`actions-box` = TRUE, `selected-text-format` = "count > 2", `count-selected-text` = "선택: {0} / 전체: {1}", 
+                                                       `select-all-text` = "전체 선택", `deselect-all-text` = "선택 해제", `live-search`  = TRUE), multiple = TRUE), 
+                            pickerInput("analy.coop", "협력사:", 
+                                        choices = sort(names(search.index[[search.default]][["협력사"]])), selected = sort(names(search.index[[search.default]][["협력사"]])), 
+                                        options = list(`actions-box` = TRUE, `selected-text-format` = "count > 2", `count-selected-text` = "선택: {0} / 전체: {1}", 
+                                                       `select-all-text` = "전체 선택", `deselect-all-text` = "선택 해제", `live-search`  = TRUE), multiple = TRUE))), 
+            width = NULL
+          )
+        ), 
         
         # Create a new row for table
         DT::dataTableOutput("analy.stat"), 
@@ -165,10 +173,13 @@ ui <- dashboardPage(
       tabItem(
         tabName = "labor", 
         # Select box to search data
-        fluidRow(box(
-          column(3, selectInput("labor.chapter", "챕터 선택", choices = names(labor.data[[length(labor.data)]]))),
-          column(3, selectInput("labor.detail", "상세 선택", choices = names(labor.data[[length(labor.data)]][[1]]))),
-          width = NULL)),
+        fluidRow(
+          box(
+            column(3, selectInput("labor.chapter", "챕터 선택", choices = names(labor.data[[length(labor.data)]]))),
+            column(3, selectInput("labor.detail", "상세 선택", choices = names(labor.data[[length(labor.data)]][[1]]))),
+            width = NULL
+          )
+        ),
         
         # Create a new row for table
         DT::dataTableOutput("labor.table"), 
@@ -182,12 +193,10 @@ ui <- dashboardPage(
                    fileInput("labor.upload", "PDF 파일 업로드", accept = ".pdf"), 
                    progressBar(id = "labor.progress", value = 0, display_pct = T), 
                    disabled(actionButton("labor.update", "업데이트", icon = icon("cloud-upload-alt"))), 
-                   div(style = "float: right;", disabled(actionButton("labor.reset", "초기화", icon = icon("undo"))))
-            ),
+                   div(style = "float: right;", disabled(actionButton("labor.reset", "초기화", icon = icon("undo"))))),
             column(3, 
                    selectInput("labor.index", "데이터 선택", choices = rev(names(labor.data))), 
-                   div(style = "float: right;", actionButton("labor.remove", "데이터 삭제", icon = icon("trash")))
-            ), 
+                   div(style = "float: right;", actionButton("labor.remove", "데이터 삭제", icon = icon("trash")))), 
             width = NULL
           )
         )
@@ -198,11 +207,13 @@ ui <- dashboardPage(
       ############################
       tabItem(
         tabName = "log", 
-        fluidRow(box(
-          fluidRow(div(style = "float: right; margin-right: 16px; margin-bottom: 15px;", downloadButton("log.download", "다운로드"))), 
-          verbatimTextOutput("log"), 
-          width = NULL
-        ))
+        fluidRow(
+          box(
+            fluidRow(div(style = "float: right; margin-right: 16px; margin-bottom: 15px;", downloadButton("log.download", "다운로드"))), 
+            verbatimTextOutput("log"), 
+            width = NULL
+          )
+        )
       )
     ), 
     div(style = "margin-bottom: 50px;")
@@ -221,32 +232,30 @@ server <- function(input, output, session) {
   
   
   # Custom sidebar collapse
-  runjs({'
-          var el2 = document.querySelector(".skin-blue");
+  runjs({'var el2 = document.querySelector(".skin-blue");
           el2.className = "skin-blue sidebar-mini";
           var clicker = document.querySelector(".sidebar-toggle");
-          clicker.id = "switchState";
-    '})
+          clicker.id = "switchState";'})
   
-  onclick('switchState', runjs({'
-                                 var title = document.querySelector(".logo")
+  onclick('switchState', runjs({'var title = document.querySelector(".logo")
                                  if (title.style.visibility == "hidden") {
                                    title.style.visibility = "visible";
                                  } else {
                                    title.style.visibility = "hidden";
-                                 }
-  '}))
+                                 }'}))
   
   # Define memory
   memory <- reactiveValues(logs = readRDS("DB/logs.rds"), 
-                           search.old   = list(choices = search.total, selected = search.total, total = search.total), 
-                           search.table = search.data[[length(search.data)]], 
-                           search.data  = search.data[[length(search.data)]])
+                           search.table = search.data[[search.default]], 
+                           search.data  = search.data[[search.default]], 
+                           search.index = search.index[[search.default]], 
+                           search.picker = list(choices = lapply(search.index[[search.default]], function (x) {sort(names(x))}), 
+                                                selected = lapply(search.index[[search.default]], function (x) {sort(names(x))}))
+  )
   
   # Log in
   observeEvent(auth, {
-    if (!is.null(reactiveValuesToList(auth)$user))
-      memory$logs <- save_log(memory$logs, auth, "login")
+    memory$logs <- save_log(memory$logs, auth, "login")
   })
   
   # Tab select
@@ -262,19 +271,20 @@ server <- function(input, output, session) {
     disable("search.remove")
   
   # Update select box contents
-  observeEvent(c(sapply(search.id, function (x) list(input[[x]])), search.data), {
-    search.selected <- sapply(search.id, function (x) list(input[[x]]))
-    memory$search.old <- update_picker(session, memory$search.data[search.labels], memory$search.old$total, memory$search.old$choices, search.labels, search.id, search.selected)
+  observeEvent(c(lapply(search.id, function (x) {input[[x]]}), memory$search.index), {
+    memory$search.picker <- update_picker2(session, search.id, memory$search.data, memory$search.index, lapply(search.id, function (x) {input[[x]]}), memory$search.picker)
+    memory$logs <- save_log(memory$logs, auth, "select", object = "search.filter")
   })
   
   # Update table
-  observeEvent(c(memory$search.old$selected, input$search.index), {
+  observeEvent(c(memory$search.picker$selected, memory$search.data), {
     # Filter data based on selections
-    memory$search.table <- make_table(memory$search.data[-c(2)], search.labels, memory$search.old$selected)
+    memory$search.table <- make_table(memory$search.data, memory$search.index, memory$search.picker$selected)
     
     # Render table
-    output$search.table <- DT::renderDataTable(datatable(isolate(memory$search.table), extensions = "FixedHeader", editable = list(target = "cell", disable = list(columns = c(0))), 
-                                                         options = list(fixedHeader = TRUE, lengthMenu = list(c(10, 25, 50, 100, -1), c("10", "25", "50", "100", "전체")), pageLength = 10), colnames = c('번호' = 1))
+    output$search.table <- DT::renderDataTable(datatable(isolate(memory$search.table), extensions = "FixedHeader", editable = list(target = "cell", disable = list(columns = c(0))), colnames = c("번호" = 1), 
+                                                         options = list(fixedHeader = TRUE, lengthMenu = list(c(10, 25, 50, 100, -1), c("10", "25", "50", "100", "전체")), pageLength = 10, 
+                                                                        columnDefs = list(list(targets = 2, visible = FALSE))))
                                                %>% (function (dt) {dt$x$data[[1]] <- as.numeric(dt$x$data[[1]]); return(dt)})
                                                %>% formatCurrency(c("자재비.단가", "노무비.단가", "경비.단가"), currency = ' ￦', interval = 3, mark = ',', digit = 0, before = FALSE))
     memory$search.table.proxy <- dataTableProxy("search.table")
@@ -291,7 +301,6 @@ server <- function(input, output, session) {
     
     # Replace data
     search.edit.temp$row <- as.integer(rownames(memory$search.table)[search.edit.temp$row])
-    if (search.edit.temp$col >= 2) search.edit.temp$col <- search.edit.temp$col + 1
     memory$search.data[search.edit.temp$row, search.edit.temp$col] <- DT::coerceValue(search.edit.temp$value, memory$search.data[search.edit.temp$row, search.edit.temp$col])
     
     enable("search.save")
@@ -313,14 +322,18 @@ server <- function(input, output, session) {
         memory$response$search.save <- format(Sys.time(), tz = "Asia/Seoul")
       search.data[[memory$response$search.save]] <<- memory$search.data
       saveRDS(search.data, file = "DB/search.data.rds")
+      search.index[[memory$response$search.save]] <<- make_index(memory$search.data, search.label)
+      saveRDS(search.index, file = "DB/search.index.rds")
       
-      updateSelectInput(session, inputId = "search.index", choices = rev(names(search.data)), selected = rev(names(search.data))[1])
-      enable("search.remove")
+      updateSelectInput(session, inputId = "search.list", choices = rev(names(search.data)), selected = rev(names(search.data))[1])
+      if (length(search.data) > 1)
+        enable("search.remove")
       disable("search.save")
       disable("search.discard")
       
       memory$response$search.save <- NULL
       shinyalert(title = "수정내용이 저장되었습니다.", text = rev(names(search.data))[1], type = "success", closeOnClickOutside = TRUE, confirmButtonText = "확인")
+      memory$logs <- save_log(memory$logs, auth, "confirm", object = "edit contents", to = "search.table")
     }
   })
   
@@ -333,15 +346,16 @@ server <- function(input, output, session) {
   # Discard edited contents - confirm
   observeEvent(memory$response$search.discard, {
     if (memory$response$search.discard) {
-      memory$search.data <- search.data[[input$search.index]]
-      memory$search.table <- make_table(memory$search.data[-c(2)], search.labels, memory$search.old$selected)
+      memory$search.data <- search.data[[input$search.list]]
+      memory$search.table <- make_table(memory$search.data, memory$search.index, memory$search.picker$selected)
       replaceData(memory$search.table.proxy, memory$search.table, resetPaging = FALSE)
       
       disable("search.save")
       disable("search.discard")
       
       memory$response$search.discard <- FALSE
-      shinyalert(title = "수정내용이 초기화되었습니다.", text = rev(names(search.data))[1], type = "success", closeOnClickOutside = TRUE, confirmButtonText = "확인")
+      shinyalert(title = "수정내용이 초기화되었습니다.", text = input$search.list, type = "success", closeOnClickOutside = TRUE, confirmButtonText = "확인")
+      memory$logs <- save_log(memory$logs, auth, "discard", object = "search.table edit")
     }
   })
   
@@ -351,24 +365,24 @@ server <- function(input, output, session) {
     
     filename <- unlist(strsplit(gsub(".xlsx", "", input$search.upload$name), "_"))
     memory$search.sheet <- cbind(read.xlsx2(input$search.upload$datapath, sheetIndex = 1, stringsAsFactors = FALSE, colClasses = NA) 
-                                 %>% select_if(names(.) %in% colnames(search.data[[length(search.data)]])) %>% match_class(search.data[[length(search.data)]]), 
+                                 %>% select_if(names(.) %in% colnames(search.data[[search.default]])) %>% match_class(search.data[[search.default]]), 
                                  연도 = as.integer(unlist(strsplit(filename[1], "-"))[1]), 현장 = filename[2], 협력사 = filename[3], 계약번호 = filename[1], 계약여부 = filename[4])
-    id.na <- which(!memory$search.sheet$대분류 %in% unique(search.data[[length(search.data)]]$대분류))
+    
+    memory$search.sheet <- cbind(memory$search.sheet, 색=ifelse(memory$search.sheet$대분류 %in%  unique(search.data[[search.default]]$대분류),"T","F"))
+    id.na <- which(is.na(memory$search.sheet$대분류))
     if (length(id.na) > 0) {
       memory$search.sheet <- rbind(memory$search.sheet[id.na, ], memory$search.sheet[-id.na, ])
       rownames(memory$search.sheet) <- 1:nrow(memory$search.sheet)
-      memory$search.sheet[,14] <- c(rep(1, length(id.na)), rep(0, nrow(memory$search.sheet)-length(id.na)))
-      colnames(memory$search.sheet) <- c(colnames(memory$search.sheet)[c(1:13)], 'check')
     }
     
     if (any(is.na(memory$search.sheet$대분류)))
       shinyalert(title = "확인되지 않은 품목이\n존재합니다!", text = input$search.upload$name, type = "warning", closeOnClickOutside = TRUE, confirmButtonText = "확인")
     
     output$search.sheet <- DT::renderDataTable(datatable(isolate(memory$search.sheet), extensions = "FixedHeader", editable = list(target = "cell", disable = list(columns = c(0))), 
-                                                         options = list(fixedHeader = TRUE, pageLength = -1, dom = "tir", columnDefs = list(list(targets = 14, visible = FALSE))))
+                                                         options = list(fixedHeader = TRUE, pageLength = -1, dom = "tir", columnDefs = list(list(targets = ncol(memory$search.sheet), visible = FALSE))))
                                                %>% formatCurrency(c("자재비.단가", "노무비.단가", "경비.단가"), currency = ' ￦', interval = 3, mark = ',', digit = 0, before = FALSE)
-                                               %>% formatStyle("check", target = "row", backgroundColor = styleEqual(c(1), "yellow"))
-    )
+                                               %>% formatStyle("색", target = "row", backgroundColor = styleEqual("F", "red"))
+                                               %>% formatStyle("대분류", target = "row", backgroundColor = styleEqual(c("",NA), c("yellow","yellow"))))
     memory$search.sheet.proxy <- dataTableProxy("search.sheet")
     
     enable("search.update")
@@ -383,16 +397,10 @@ server <- function(input, output, session) {
     # Replace sheet
     search.edit.temp <- input$search.sheet_cell_edit
     memory$search.sheet[search.edit.temp$row, search.edit.temp$col] <- DT::coerceValue(search.edit.temp$value, memory$search.sheet[search.edit.temp$row, search.edit.temp$col])
-    if (search.edit.temp$col == 2)
-      memory$search.sheet[search.edit.temp$row, ] <- match_class(memory$search.sheet[search.edit.temp$row, -c(1)], search.data[[length(search.data)]])
-    id.na <- which(!memory$search.sheet$대분류 %in% unique(search.data[[length(search.data)]]$대분류))
-    if (length(id.na) > 0) {
-      memory$search.sheet <- rbind(memory$search.sheet[id.na, ], memory$search.sheet[-id.na, ])
-      rownames(memory$search.sheet) <- 1:nrow(memory$search.sheet)
-      memory$search.sheet[,14] <- c(rep(1, length(id.na)), rep(0, nrow(memory$search.sheet)-length(id.na)))
-      colnames(memory$search.sheet) <- c(colnames(memory$search.sheet)[c(1:13)], 'check')
+    if (search.edit.temp$col == 2){
+      memory$search.sheet[search.edit.temp$row, ] <- match_class(memory$search.sheet[search.edit.temp$row, -c(1)], search.data[[search.default]])
     }
-    
+    memory$search.sheet <- cbind(memory$search.sheet[,-c(ncol(memory$search.sheet))] , 색 = ifelse(memory$search.sheet$대분류 %in%  unique(search.data[[search.default]]$대분류),"T","F"))
     replaceData(memory$search.sheet.proxy, memory$search.sheet, resetPaging = FALSE)
     
     enable("search.update")
@@ -413,11 +421,13 @@ server <- function(input, output, session) {
       if (memory$response$search.update == "")
         memory$response$search.update <- format(Sys.time(), tz = "Asia/Seoul")
       memory$search.sheet$품명 <- gsub("[[:blank:][:punct:]]", "", memory$search.sheet$품명)
-      memory$search.sheet <- rbind(memory$search.sheet[, -ncol(memory$search.sheet)], search.data[[length(search.data)]])
+      memory$search.sheet <- rbind(memory$search.sheet[, -ncol(memory$search.sheet)], search.data[[search.default]])
       search.data[[memory$response$search.update]] <<- memory$search.sheet
       saveRDS(search.data, file = "DB/search.data.rds")
+      search.index[[memory$response$search.update]] <<- make_index(memory$search.sheet, search.label)
+      saveRDS(search.index, file = "DB/search.index.rds")
       
-      updateSelectInput(session, inputId = "search.index", choices = rev(names(search.data)), selected = rev(names(search.data))[1])
+      updateSelectInput(session, inputId = "search.list", choices = rev(names(search.data)), selected = rev(names(search.data))[1])
       memory$search.sheet <- NULL
       output$search.sheet <- NULL
       reset("search.upload")
@@ -427,6 +437,7 @@ server <- function(input, output, session) {
       
       memory$response$search.update <- NULL
       shinyalert(title = "데이터가 추가되었습니다.", text = rev(names(search.data))[1], type = "success", closeOnClickOutside = TRUE, confirmButtonText = "확인")
+      memory$logs <- save_log(memory$logs, auth, "add", object = rev(names(search.data))[1], to = "search.table")
     }
   })
   
@@ -449,34 +460,39 @@ server <- function(input, output, session) {
   })
   
   # Select data
-  observeEvent(input$search.index, {
-    memory$search.old$total <- sapply(search.labels, function (x) sort(unique(as.character(search.data[[input$search.index]][[x]]))))
-    memory$search.old <- update_picker(session, search.data[[input$search.index]][search.labels], memory$search.old$total, NULL, search.labels, search.id, memory$search.old$total)
-    memory$search.data <- search.data[[input$search.index]]
+  observeEvent(input$search.list, {
+    memory$search.table <- search.data[[input$search.list]]
+    memory$search.data  <- search.data[[input$search.list]]
+    memory$search.index <- search.index[[input$search.list]]
+    memory$logs <- save_log(memory$logs, auth, "select", object = "search.list", to = input$search.list)
   })
   
   # Download data
-  output$search.download <- downloadHandler(filename = paste0("기계약정보 ", format(as.POSIXct(input$search.index), "%Y_%m_%d_%H_%M_%S"), ".xlsx"), 
-                                            content = function(file) write.xlsx2(search.data[[input$search.index]], file, row.names = FALSE))
+  output$search.download <- downloadHandler(filename = paste0("기계약정보_", input$search.list, ".xlsx"), 
+                                            content = function(file) write.xlsx2(search.data[[input$search.list]], file, row.names = FALSE))
   
   # Remove data - display popup message
   observeEvent(input$search.remove, {
-    shinyalert(title = "데이터를 삭제하시겠습니까?", text = input$search.index, type = "warning", closeOnClickOutside = TRUE, showCancelButton = TRUE, 
+    shinyalert(title = "데이터를 삭제하시겠습니까?", text = input$search.list, type = "warning", closeOnClickOutside = TRUE, showCancelButton = TRUE, 
                confirmButtonText = "확인", cancelButtonText = "취소", callbackR = function (x) memory$response$search.remove <- x)
   })
   
   # Remove data - confirm
   observeEvent(memory$response$search.remove, {
     if (memory$response$search.remove) {
-      search.data[input$search.index] <<- NULL
+      delete.name <- input$search.list
+      search.data[[delete.name]] <<- NULL
       saveRDS(search.data, file = "DB/search.data.rds")
+      search.index[[delete.name]] <<- NULL
+      saveRDS(search.index, file = "DB/search.index.rds")
       
-      updateSelectInput(session, inputId = "search.index", choices = rev(names(search.data)), selected = rev(names(search.data))[1])
+      updateSelectInput(session, inputId = "search.list", choices = rev(names(search.data)), selected = rev(names(search.data))[1])
       if (length(search.data) == 1) 
         disable("search.remove")
       
       memory$response$search.remove <- FALSE
-      shinyalert(title = "데이터가 삭제되었습니다.", text = input$search.index, type = "success", closeOnClickOutside = TRUE, confirmButtonText = "확인")
+      shinyalert(title = "데이터가 삭제되었습니다.", text = delete.name, type = "success", closeOnClickOutside = TRUE, confirmButtonText = "확인")
+      memory$logs <- save_log(memory$logs, auth, "delete", object = paste0("search.table: ", delete.name))
     }
   })
   
@@ -491,9 +507,9 @@ server <- function(input, output, session) {
   observeEvent(input$cmp.sheet, {
     memory$tempdata <- list()
     text.temp <- NULL
-    memory$table.temp <- data.frame(matrix(nrow=0, ncol=(4 + nrow(input$cmp.sheet)*3)))
+    memory$table.temp <- data.frame(matrix(nrow=0, ncol=(4 + nrow(input$cmp.sheet) * 3)))
     for (i in 1:nrow(input$cmp.sheet)) {
-      memory$tempdata[[i]] <- match_class(read.xlsx2(input$cmp.sheet$datapath[i], sheetIndex = 1, stringsAsFactors = FALSE, colClasses = NA),  search.data[[input$search.index]])
+      memory$tempdata[[i]] <- match_class(read.xlsx2(input$cmp.sheet$datapath[i], sheetIndex = 1, stringsAsFactors = FALSE, colClasses = NA),  search.data[[search.default]])
       memory$tempdata[[i]][, c(5:10)] <- apply(memory$tempdata[[i]][,c(5:10)], 2, function (x) {x[is.na(as.integer(x))] <- 0; return(x)})
       
       
@@ -574,9 +590,9 @@ server <- function(input, output, session) {
     }
     table.show <- cbind(table.show, temp.show)
     if (nrow(table.show) !=  diff) {
-      ttemp.temp.table.show <- datatable(table.show, extensions = "FixedHeader", editable = list(target = "cell", disable = list(columns = c(0, 3:ncol(table.show)))),
-                                         options = list(fixedHeader = TRUE, lengthMenu = list(c(10, 25, 50, 100, -1), c("10", "25", "50", "100", "전체")), pageLength = 10, 
-                                                        columnDefs = list(list(targets = c((1+ncol(table.show)-ncol(temp.show)):ncol(table.show)), visible = FALSE))) 
+      temp.temp.table.show <- datatable(table.show, extensions = "FixedHeader", editable = list(target = "cell", disable = list(columns = c(0, 3:ncol(table.show)))),
+                                        options = list(fixedHeader = TRUE, lengthMenu = list(c(10, 25, 50, 100, -1), c("10", "25", "50", "100", "전체")), pageLength = 10, 
+                                                       columnDefs = list(list(targets = c((1+ncol(table.show)-ncol(temp.show)):ncol(table.show)), visible = FALSE))) 
       )
       temp.temp.table.show <- {temp.temp.table.show %>% formatStyle(c("자재비 단가 1", "노무비 단가 1", "경비 단가 1"), borderLeft = "solid 1px black") %>% formatCurrency(c(3:(ncol(table.show)-ncol(temp.show))), currency = ' ￦', interval = 3, mark = ',', digit = 0, before = FALSE)}
       for (i in 1:(ncol(table.show) - 2) / 2) {
@@ -602,10 +618,10 @@ server <- function(input, output, session) {
     disable("analy.download")
     
     # Read uploaded sheet
-    memory$analy.sheet <- read.xlsx2(input$analy.sheet$datapath, sheetIndex = 1, stringsAsFactors = FALSE, colClasses = NA) %>% match_class(search.data[[length(search.data)]])
+    memory$analy.sheet <- read.xlsx2(input$analy.sheet$datapath, sheetIndex = 1, stringsAsFactors = FALSE, colClasses = NA) %>% match_class(search.data[[search.default]])
     
     # Make analytics using previous contract data
-    memory$analy.stat <- make_stat(memory$analy.sheet, search.data[[length(search.data)]], 
+    memory$analy.stat <- make_stat(memory$analy.sheet, search.data[[search.default]], 
                                    options = list(sign = input$analy.sign, year = input$analy.year, site = input$analy.site, coop = input$analy.coop), Download = FALSE)
     rownames(memory$analy.stat) <- as.numeric(1:nrow(memory$analy.stat))
     
@@ -621,7 +637,7 @@ server <- function(input, output, session) {
     
     # Download stat
     output$analy.download <- downloadHandler(filename = paste0(input$analy.sheet$name, "_분석", ".xlsx"), 
-                                             content = function(file) write.xlsx2(make_stat(memory$analy.sheet, search.data[[length(search.data)]], 
+                                             content = function(file) write.xlsx2(make_stat(memory$analy.sheet, search.data[[search.default]], 
                                                                                             options = list(sign = input$analy.sign, year = input$analy.year, site = input$analy.site, coop = input$analy.coop), Download = TRUE), 
                                                                                   file, row.names = FALSE))
     enable("analy.download")
@@ -633,7 +649,7 @@ server <- function(input, output, session) {
       disable("analy.download")
       
       # Make analytics using previous contract data
-      memory$analy.stat <- make_stat(memory$analy.sheet, search.data[[length(search.data)]], 
+      memory$analy.stat <- make_stat(memory$analy.sheet, search.data[[search.default]], 
                                      options = list(sign = input$analy.sign, year = input$analy.year, site = input$analy.site, coop = input$analy.coop), Download = FALSE)
       
       # Reload stat
@@ -641,7 +657,7 @@ server <- function(input, output, session) {
       
       # Download stat
       output$analy.download <- downloadHandler(filename = paste0("기계약_분석", ".xlsx"), 
-                                               content = function(file) write.xlsx2(make_stat(memory$analy.sheet, search.data[[length(search.data)]], 
+                                               content = function(file) write.xlsx2(make_stat(memory$analy.sheet, search.data[[search.default]], 
                                                                                               options = list(sign = input$analy.sign, year = input$analy.year, site = input$analy.site, coop = input$analy.coop)), 
                                                                                     file, row.names = FALSE))
       enable("analy.download")
@@ -670,9 +686,9 @@ server <- function(input, output, session) {
     
     # Reload stat
     if (analy.edited$col == 2)
-      memory$analy.sheet[analy.edited$row, ] <- match_class(memory$analy.sheet[analy.edited$row, -c(1)], search.data[[length(search.data)]], 
+      memory$analy.sheet[analy.edited$row, ] <- match_class(memory$analy.sheet[analy.edited$row, -c(1)], search.data[[search.default]], 
                                                             options = list(sign = input$analy.sign, year = input$analy.year, site = input$analy.site, coop = input$analy.coop))
-    memory$analy.stat[analy.edited$row, ] <- make_stat(memory$analy.sheet[analy.edited$row, ], search.data[[length(search.data)]], 
+    memory$analy.stat[analy.edited$row, ] <- make_stat(memory$analy.sheet[analy.edited$row, ], search.data[[search.default]], 
                                                        options = list(sign = input$analy.sign, year = input$analy.year, site = input$analy.site, coop = input$analy.coop), Download = FALSE)
     replaceData(memory$analy.stat.proxy, memory$analy.stat, resetPaging = FALSE)
     enable("analy.download")
