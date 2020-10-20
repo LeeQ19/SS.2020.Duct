@@ -44,7 +44,7 @@ ui <- dashboardPage(
       menuItem("품셈",        tabName = "labor",  icon = icon("file-invoice")), 
       menuItem("사용자 로그", tabName = "log",    icon = icon("list"))
     ), 
-    tags$footer("ver 3.2.0", align = "right", style = "font-size: 15px; position:absolute; bottom:0; width:100%; padding:10px")
+    tags$footer("ver 3.2.1", align = "right", style = "font-size: 15px; position:absolute; bottom:0; width:100%; padding:10px")
   ), 
   
   #########################################################
@@ -272,7 +272,7 @@ server <- function(input, output, session) {
   
   # Update select box contents
   observeEvent(c(lapply(search.id, function (x) {input[[x]]}), memory$search.index), {
-    memory$search.picker <- update_picker2(session, search.id, memory$search.data, memory$search.index, lapply(search.id, function (x) {input[[x]]}), memory$search.picker)
+    memory$search.picker <- update_picker(session, search.id, memory$search.data, memory$search.index, lapply(search.id, function (x) {input[[x]]}), memory$search.picker)
     memory$logs <- save_log(memory$logs, auth, "select", object = "search.filter")
   })
   

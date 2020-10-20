@@ -15,34 +15,14 @@ make_index <- function (data, labels) {
 }
 
 # Declare function to update picker input by selected data
-update_picker <- function (session, data, total, choices.old, labels, id, selected) {
-  con1 <- sapply(selected, function (x) length(x) == 0)
-  if (any(con1)) 
-    return(list(choices = choices.old, selected = selected))
-  con2 <- sapply(1:length(labels), function (i) length(choices.old[[i]]) == length(selected[[i]]))
-  choices <- list()
-  selected.new <- list()
-  for (i in 1:length(labels)) {
-    temp <- data
-    for (j in c(1:length(labels))[-i]) {
-      if (!con2[j])
-        temp <- temp[temp[[labels[j]]] %in% selected[[j]], ]
-    }
-    choices[[i]] <- sort(unique(as.character(temp[[labels[i]]])))
-    selected.new[[i]] <- if (con2[i]) choices[[i]] else selected[[i]][selected[[i]] %in% choices[[i]]]
-    updatePickerInput(session, inputId = id[i], choices = choices[[i]], selected = selected.new[[i]])
-  }
-  return(list(choices = choices, selected = selected.new, total = total))
-}
-
-# Declare function to update picker input by selected data
-update_picker2 <- function (session, id, data, index, selected, old) {
+update_picker <- function (session, id, data, index, selected, old) {
   n.filter <- length(id)
   label <- names(index)
   choices.new <- old$choices
   selected.new <- selected
   if (any(sapply(selected, length) == 0)) 
     return(list(choices = choices.new, selected = selected.new))
+  id.changed <- which(sapply(1:n.filter, function (i) {length(selected[[i]]) != length(old$selected[[i]])}))
   index.each <- lapply(1:n.filter, function (i) {unlist(index[[i]][selected[[i]]], use.names = FALSE)})
   for (i in c(1:n.filter)) {
     if (all(sapply(c(1:n.filter)[-i], function (j) {length(selected[[j]]) == length(old$choices[[j]])}))) {
@@ -53,7 +33,7 @@ update_picker2 <- function (session, id, data, index, selected, old) {
       choices.temp[which(choices.temp == "")] <- "없음"
       choices.temp <- sort(choices.temp)
     }
-    if (length(old$selected[[i]]) == length(old$choices[[i]])) 
+    if (length(id.changed) != 0 && i != id.changed && length(old$selected[[i]]) == length(old$choices[[i]])) 
       selected.temp <- choices.temp
     else 
       selected.temp <- intersect(selected[[i]], choices.temp)
