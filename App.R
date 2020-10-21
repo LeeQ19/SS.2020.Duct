@@ -2,13 +2,29 @@
 ### Set up environment
 #########################################################################################################################
 # Load library
-source("Global.R", encoding = "UTF-8")
+library("dplyr")
+library("DT")
+library("pdftools")
+library("shiny")
+library("shinydashboard")
+library("shinyWidgets")
+library("shinyjs")
+library("shinyalert")
+library("shinymanager")
+library("shinythemes")
+library("xlsx")
+library("formattable")
+library("ggrepel")
+library("RColorBrewer")
+library("showtext")
 
 # Load function
 source("Module.R", encoding = "UTF-8")
 
 # Set environment
 options(shiny.maxRequestSize = 30*1024^2)
+showtext_auto()
+showtext_opts(dpi = 112)
 
 # data.frame with credentials info
 credentials <- readRDS("DB/credentials.rds")
@@ -42,9 +58,10 @@ ui <- dashboardPage(
       menuItem("견적서 비교", tabName = "cmp",    icon = icon("chart-bar")), 
       menuItem("견적서 검토", tabName = "analy",  icon = icon("dashboard")), 
       menuItem("품셈",        tabName = "labor",  icon = icon("file-invoice")), 
+      menuItem("분석 그래프", tabName = "graph",  icon = icon("list")), 
       menuItem("사용자 로그", tabName = "log",    icon = icon("list"))
     ), 
-    tags$footer("ver 3.2.1", align = "right", style = "font-size: 15px; position:absolute; bottom:0; width:100%; padding:10px")
+    tags$footer("ver 3.3.0", align = "right", style = "font-size: 15px; position:absolute; bottom:0; width:100%; padding:10px")
   ), 
   
   #########################################################
@@ -203,6 +220,47 @@ ui <- dashboardPage(
       ), 
       
       ############################
+      ### Graph tab content
+      ############################
+      
+      tabItem(
+        tabName = "graph",
+        
+        fluidPage(
+          titlePanel("품목별 상세 비교 그래프"),
+          fluidRow(
+            box(
+              column(3,
+                     selectizeInput("graph.category", label = "대분류 선택",
+                                    choices = sort(unique(make_graphdata(search.data[[search.default]])$대분류)),  
+                                    selected = "덕트", multiple = FALSE)
+              ), 
+              
+              column(3, 
+                     radioGroupButtons("graph.contract", "계약 여부",
+                                       choiceNames = list("계약", "비계약"),
+                                       choiceValues = list("계약", "비계약"))
+              ),
+              
+              column(6,
+                     pickerInput(
+                       inputId = "graph.site", label = "[현장-협력사-연도] 선택",
+                       choices = make_graphdata(search.data[[search.default]])[make_graphdata(search.data[[search.default]])$대분류 == '덕트', ]$newsite,
+                       options = list(`actions-box` = TRUE, 
+                                      `selected-text-format` = paste0("count > ", length(sort(unique(make_graphdata(search.data[[search.default]])$newsite)))),
+                                      `count-selected-text` = "전체"),
+                       multiple = TRUE)
+              )
+            )
+          ),
+          
+          plotOutput("graph.bar"),
+          br(), br(),
+          DT::dataTableOutput("graph.summary")
+        )   
+      ),
+      
+      ############################
       ### Log tab content
       ############################
       tabItem(
@@ -250,7 +308,8 @@ server <- function(input, output, session) {
                            search.data  = search.data[[search.default]], 
                            search.index = search.index[[search.default]], 
                            search.picker = list(choices = lapply(search.index[[search.default]], function (x) {sort(names(x))}), 
-                                                selected = lapply(search.index[[search.default]], function (x) {sort(names(x))}))
+                                                selected = lapply(search.index[[search.default]], function (x) {sort(names(x))})),
+                           graph.data = make_graphdata(search.data[[search.default]])
   )
   
   # Log in
@@ -367,8 +426,9 @@ server <- function(input, output, session) {
     memory$search.sheet <- cbind(read.xlsx2(input$search.upload$datapath, sheetIndex = 1, stringsAsFactors = FALSE, colClasses = NA) 
                                  %>% select_if(names(.) %in% colnames(search.data[[search.default]])) %>% match_class(search.data[[search.default]]), 
                                  연도 = as.integer(unlist(strsplit(filename[1], "-"))[1]), 현장 = filename[2], 협력사 = filename[3], 계약번호 = filename[1], 계약여부 = filename[4])
+    search.data.complete <- search.data[[search.default]][complete.cases(search.data[[search.default]]$자재비.단가), ]
+    memory$search.sheet <- cbind(memory$search.sheet, 색=ifelse(memory$search.sheet$대분류 %in%  unique(search.data[[search.default]]$대분류),"T","F"), 단가색 = apply(memory$search.sheet, 1,  function (x) {ifelse(x["자재비.단가"] > max(search.data.complete[search.data.complete$대분류 == x["대분류"], ]$자재비.단가) | x["자재비.단가"] > max(search.data.complete[search.data.complete$대분류 == x["대분류"], ]$자재비.단가), "F", "T")}))
     
-    memory$search.sheet <- cbind(memory$search.sheet, 색=ifelse(memory$search.sheet$대분류 %in%  unique(search.data[[search.default]]$대분류),"T","F"))
     id.na <- which(is.na(memory$search.sheet$대분류))
     if (length(id.na) > 0) {
       memory$search.sheet <- rbind(memory$search.sheet[id.na, ], memory$search.sheet[-id.na, ])
@@ -379,10 +439,12 @@ server <- function(input, output, session) {
       shinyalert(title = "확인되지 않은 품목이\n존재합니다!", text = input$search.upload$name, type = "warning", closeOnClickOutside = TRUE, confirmButtonText = "확인")
     
     output$search.sheet <- DT::renderDataTable(datatable(isolate(memory$search.sheet), extensions = "FixedHeader", editable = list(target = "cell", disable = list(columns = c(0))), 
-                                                         options = list(fixedHeader = TRUE, pageLength = -1, dom = "tir", columnDefs = list(list(targets = ncol(memory$search.sheet), visible = FALSE))))
+                                                         options = list(fixedHeader = TRUE, pageLength = -1, dom = "tir", columnDefs = list(list(targets = c((ncol(memory$search.sheet)-1),ncol(memory$search.sheet)), visible = FALSE))))
                                                %>% formatCurrency(c("자재비.단가", "노무비.단가", "경비.단가"), currency = ' ￦', interval = 3, mark = ',', digit = 0, before = FALSE)
                                                %>% formatStyle("색", target = "row", backgroundColor = styleEqual("F", "red"))
-                                               %>% formatStyle("대분류", target = "row", backgroundColor = styleEqual(c("",NA), c("yellow","yellow"))))
+                                               %>% formatStyle("대분류", target = "row", backgroundColor = styleEqual(c("",NA), c("yellow","yellow")))
+                                               %>% formatStyle('자재비.단가', '단가색', backgroundColor = styleEqual("F", "lightgreen")))
+    
     memory$search.sheet.proxy <- dataTableProxy("search.sheet")
     
     enable("search.update")
@@ -400,7 +462,8 @@ server <- function(input, output, session) {
     if (search.edit.temp$col == 2){
       memory$search.sheet[search.edit.temp$row, ] <- match_class(memory$search.sheet[search.edit.temp$row, -c(1)], search.data[[search.default]])
     }
-    memory$search.sheet <- cbind(memory$search.sheet[,-c(ncol(memory$search.sheet))] , 색 = ifelse(memory$search.sheet$대분류 %in%  unique(search.data[[search.default]]$대분류),"T","F"))
+    search.data.complete <- search.data[[search.default]][complete.cases(search.data[[search.default]]$자재비.단가), ]
+    memory$search.sheet <- cbind(memory$search.sheet[,-c((ncol(memory$search.sheet)-1),ncol(memory$search.sheet))] , 색 = ifelse(memory$search.sheet$대분류 %in%  unique(search.data[[search.default]]$대분류),"T","F"), 단가색 = apply(memory$search.sheet, 1,  function (x) {ifelse(x["자재비.단가"] > max(search.data.complete[search.data.complete$대분류 == x["대분류"], ]$자재비.단가) | x["자재비.단가"] > max(search.data.complete[search.data.complete$대분류 == x["대분류"], ]$자재비.단가), "F", "T")}))
     replaceData(memory$search.sheet.proxy, memory$search.sheet, resetPaging = FALSE)
     
     enable("search.update")
@@ -465,6 +528,7 @@ server <- function(input, output, session) {
     memory$search.data  <- search.data[[input$search.list]]
     memory$search.index <- search.index[[input$search.list]]
     memory$logs <- save_log(memory$logs, auth, "select", object = "search.list", to = input$search.list)
+    memory$graph.data <- make_graphdata(search.data[[input$search.list]])
   })
   
   # Download data
@@ -796,6 +860,65 @@ server <- function(input, output, session) {
       memory$response$labor.remove <- FALSE
     }
   })
+  
+  #########################################################
+  ### graph tab
+  #########################################################
+  
+  # update picker input
+  observeEvent(c(input$graph.category, input$graph.contract), {
+    tmp <- memory$graph.data %>% filter(대분류 == input$graph.category &
+                                             계약여부 == input$graph.contract)
+    a
+    updatePickerInput(session = session, inputId = "graph.site",
+                      choices = unique(tmp$newsite))
+  })
+  
+  observeEvent(c(input$graph.category, input$graph.contract, input$graph.site), {
+    memory$graph.data.selected <- memory$graph.data %>% filter(newsite %in% input$graph.site,
+                                                               대분류 == input$graph.category,
+                                                               계약여부 == input$graph.contract)
+    
+  })
+  
+  output$graph.bar <- renderPlot({
+    colourCount = length(unique(memory$graph.data.selected$newsite))
+    getPalette = colorRampPalette(brewer.pal((length(unique(memory$graph.data.selected$newsite)) / 8) + 1, "Spectral"))
+    
+    ggplot(memory$graph.data.selected, aes(x=규격, y=자재비.단가, fill=reorder(newsite, 자재비.단가))) +
+      
+      geom_bar(stat="identity", width=0.7, position = position_dodge(width = 0.8, preserve = "single")) +
+      
+      coord_cartesian(ylim= c(min(memory$graph.data.selected$자재비.단가) * 0.9, max(memory$graph.data.selected$자재비.단가) * 1.1)) +
+      
+      labs(fill="현장 - 협력사 - 연도")+
+      xlab("규격") +
+      ylab("자재비 단가") +
+      theme_bw() +
+      scale_fill_manual(values = getPalette(colourCount))
+  })
+  
+  
+  observeEvent(memory$graph.data.selected, {
+    smry <- data.frame(matrix(nrow = 3, ncol = length(unique(memory$graph.data.selected$규격))))
+    smry[is.na(smry)] <- 0
+    size_list <- sort(unique(memory$graph.data.selected$규격))
+    colnames(smry) <- size_list
+    rownames(smry) <- c('최소값', '중간값', '최대값')
+    
+    if (nrow(memory$graph.data.selected) != 0){
+      for (i in 1:length(size_list)){
+        tmp <- memory$graph.data.selected %>% filter(규격 == size_list[i])
+        smry[1, i] <- paste(formatC(min(tmp$자재비.단가) , digits = 2, big.mark = ',', format = 'd'), '원')
+        smry[2, i] <- paste(formatC(median(tmp$자재비.단가) , digits = 2, big.mark = ',', format = 'd'), '원')
+        smry[3, i] <- paste(formatC(max(tmp$자재비.단가) , digits = 2, big.mark = ',', format = 'd'), '원')
+      }
+    }
+    
+    output$graph_summary <- DT::renderDataTable(datatable(smry))
+    
+  })
+  
   
   #########################################################
   ### Log tab

@@ -363,3 +363,7 @@ match_table <- function(table, data){
   return(table)
 }
 
+# Add column for graph and select row
+make_graphdata <- function(data){
+  return(data %>% (function (x) {x[(complete.cases(x[ , c("자재비.단가")]) & x[ , c("자재비.단가")] > 0), ]}) %>% mutate(newsite = paste(현장, '-', 협력사, '-', 연도)))
+}
