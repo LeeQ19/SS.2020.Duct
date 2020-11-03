@@ -141,7 +141,7 @@ save_log <- function (logs, auth, action, object = NA, to = NA) {
   if (is.null(reactiveValuesToList(auth)$user)) return(logs)
   substr(action, 1, 1) <- toupper(substr(action, 1, 1))
   logs <- rbind(logs, c(format(Sys.time(), tz = "Asia/Seoul"), reactiveValuesToList(auth)$user, action, object, to))
-  saveRDS(logs, file = "DB/logs.rds")
+  save_data(logs)
   return(logs)
 }
 
@@ -164,7 +164,7 @@ print_log <- function (logs) {
 read_pdf <- function (path, session = session) {
   tmp_data <- pdf_data(path)
   result <- list()
-  form <- readRDS("DB/labor.data.rds")[[1]]
+  form <- load_data("labor.data")[[1]]
   chapter_list <- names(form)
   for (ch in 1:length(chapter_list)) {
     chapter <- chapter_list[ch]
