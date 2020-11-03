@@ -61,7 +61,7 @@ ui <- dashboardPage(
       menuItem("분석 그래프", tabName = "graph",  icon = icon("list")), 
       menuItem("사용자 로그", tabName = "log",    icon = icon("list"))
     ), 
-    tags$footer("ver 3.3.0", align = "right", style = "font-size: 15px; position:absolute; bottom:0; width:100%; padding:10px")
+    tags$footer("ver 3.4.0", align = "right", style = "font-size: 15px; position:absolute; bottom:0; width:100%; padding:10px")
   ), 
   
   #########################################################
@@ -427,7 +427,7 @@ server <- function(input, output, session) {
                                  %>% select_if(names(.) %in% colnames(search.data[[search.default]])) %>% match_class(search.data[[search.default]]), 
                                  연도 = as.integer(unlist(strsplit(filename[1], "-"))[1]), 현장 = filename[2], 협력사 = filename[3], 계약번호 = filename[1], 계약여부 = filename[4])
     search.data.complete <- search.data[[search.default]][complete.cases(search.data[[search.default]]$자재비.단가), ]
-    memory$search.sheet <- cbind(memory$search.sheet, 색=ifelse(memory$search.sheet$대분류 %in%  unique(search.data[[search.default]]$대분류),"T","F"), 단가색 = apply(memory$search.sheet, 1,  function (x) {ifelse(x["자재비.단가"] > max(search.data.complete[search.data.complete$대분류 == x["대분류"], ]$자재비.단가) | x["자재비.단가"] > max(search.data.complete[search.data.complete$대분류 == x["대분류"], ]$자재비.단가), "F", "T")}))
+    memory$search.sheet <- cbind(memory$search.sheet, 색=ifelse(memory$search.sheet$대분류 %in%  unique(search.data[[search.default]]$대분류),"T","F"), 단가색 = apply(memory$search.sheet, 1,  function (x) {ifelse(as.numeric(x["자재비.단가"]) <= max(search.data.complete[search.data.complete$대분류 == x["대분류"] & search.data.complete$규격 == x["규격"], ]$자재비.단가) & as.numeric(x["자재비.단가"]) >= min(search.data.complete[search.data.complete$대분류 == x["대분류"] & search.data.complete$규격 == x["규격"], ]$자재비.단가), "T", "F")}))
     
     id.na <- which(is.na(memory$search.sheet$대분류))
     if (length(id.na) > 0) {
@@ -443,7 +443,7 @@ server <- function(input, output, session) {
                                                %>% formatCurrency(c("자재비.단가", "노무비.단가", "경비.단가"), currency = ' ￦', interval = 3, mark = ',', digit = 0, before = FALSE)
                                                %>% formatStyle("색", target = "row", backgroundColor = styleEqual("F", "red"))
                                                %>% formatStyle("대분류", target = "row", backgroundColor = styleEqual(c("",NA), c("yellow","yellow")))
-                                               %>% formatStyle('자재비.단가', '단가색', backgroundColor = styleEqual("F", "lightgreen")))
+                                               %>% formatStyle('자재비.단가', '단가색', color = styleEqual("F", "red")))
     
     memory$search.sheet.proxy <- dataTableProxy("search.sheet")
     
@@ -463,7 +463,7 @@ server <- function(input, output, session) {
       memory$search.sheet[search.edit.temp$row, ] <- match_class(memory$search.sheet[search.edit.temp$row, -c(1)], search.data[[search.default]])
     }
     search.data.complete <- search.data[[search.default]][complete.cases(search.data[[search.default]]$자재비.단가), ]
-    memory$search.sheet <- cbind(memory$search.sheet[,-c((ncol(memory$search.sheet)-1),ncol(memory$search.sheet))] , 색 = ifelse(memory$search.sheet$대분류 %in%  unique(search.data[[search.default]]$대분류),"T","F"), 단가색 = apply(memory$search.sheet, 1,  function (x) {ifelse(x["자재비.단가"] > max(search.data.complete[search.data.complete$대분류 == x["대분류"], ]$자재비.단가) | x["자재비.단가"] > max(search.data.complete[search.data.complete$대분류 == x["대분류"], ]$자재비.단가), "F", "T")}))
+    memory$search.sheet <- cbind(memory$search.sheet[,-c((ncol(memory$search.sheet)-1),ncol(memory$search.sheet))] , 색 = ifelse(memory$search.sheet$대분류 %in%  unique(search.data[[search.default]]$대분류),"T","F"), 단가색 = apply(memory$search.sheet, 1,  function (x) {ifelse(as.numeric(x["자재비.단가"]) <= max(search.data.complete[search.data.complete$대분류 == x["대분류"] & search.data.complete$규격 == x["규격"], ]$자재비.단가) & as.numeric(x["자재비.단가"]) >= min(search.data.complete[search.data.complete$대분류 == x["대분류"], ]$자재비.단가), "T", "F")}))
     replaceData(memory$search.sheet.proxy, memory$search.sheet, resetPaging = FALSE)
     
     enable("search.update")
@@ -480,14 +480,14 @@ server <- function(input, output, session) {
   
   # Update archive - confirm
   observeEvent(memory$response$search.update, {
-    if (!is.null(memory$response$search.update)) {
+    if (!isFALSE(memory$response$search.update)) {
       if (memory$response$search.update == "")
         memory$response$search.update <- format(Sys.time(), tz = "Asia/Seoul")
       memory$search.sheet$품명 <- gsub("[[:blank:][:punct:]]", "", memory$search.sheet$품명)
-      memory$search.sheet <- rbind(memory$search.sheet[, -ncol(memory$search.sheet)], search.data[[search.default]])
-      search.data[[memory$response$search.update]] <<- memory$search.sheet
+      data.temp <- rbind(memory$search.sheet[colnames(search.data[[search.default]])], search.data[[search.default]])
+      search.data[[memory$response$search.update]] <<- data.temp
       saveRDS(search.data, file = "DB/search.data.rds")
-      search.index[[memory$response$search.update]] <<- make_index(memory$search.sheet, search.label)
+      search.index[[memory$response$search.update]] <<- make_index(data.temp, search.label)
       saveRDS(search.index, file = "DB/search.index.rds")
       
       updateSelectInput(session, inputId = "search.list", choices = rev(names(search.data)), selected = rev(names(search.data))[1])
@@ -915,7 +915,7 @@ server <- function(input, output, session) {
       }
     }
     
-    output$graph_summary <- DT::renderDataTable(datatable(smry))
+    output$graph.summary <- DT::renderDataTable(datatable(smry))
     
   })
   
