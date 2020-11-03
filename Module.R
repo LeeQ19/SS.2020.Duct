@@ -1,3 +1,20 @@
+# Set environment
+key <- read.csv("rootkey.csv")
+Sys.setenv("AWS_ACCESS_KEY_ID" = key[["AWS_ACCESS_KEY_ID"]],
+           "AWS_SECRET_ACCESS_KEY" = key[["AWS_SECRET_ACCESS_KEY"]],
+           "AWS_DEFAULT_REGION" = key[["AWS_DEFAULT_REGION"]])
+
+# Declare function to save data on AWS S3
+save_data <- function (object) {
+  s3save(object, bucket = "shinsung-duct", object = deparse(substitute(object)))
+}
+
+# Declare function to load data from AWS S3
+load_data <- function (name) {
+  load(rawConnection(get_object(paste0("s3://shinsung-duct/", name))))
+  return(object)
+}
+
 # Declare function to make indexes of data to filter
 make_index <- function (data, labels) {
   n <- nrow(data)
@@ -365,5 +382,6 @@ match_table <- function(table, data){
 
 # Add column for graph and select row
 make_graphdata <- function(data){
-  return(data %>% (function (x) {x[(complete.cases(x[ , c("자재비.단가")]) & x[ , c("자재비.단가")] > 0), ]}) %>% mutate(newsite = paste(현장, '-', 협력사, '-', 연도)))
+  return(data %>% (function (x) {x[(complete.cases(x[ , c("자재비.단가")]) & x[ , c("자재비.단가")] > 0), ]}) %>% mutate(combi = paste(현장, '-', 협력사, '-', 연도),
+                                                                                                               label = paste(현장, '-', 협력사)))
 }

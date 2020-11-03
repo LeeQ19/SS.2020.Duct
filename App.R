@@ -2,21 +2,23 @@
 ### Set up environment
 #########################################################################################################################
 # Load library
+library("aws.s3")
 library("dplyr")
 library("DT")
-library("pdftools")
-library("shiny")
-library("shinydashboard")
-library("shinyWidgets")
-library("shinyjs")
-library("shinyalert")
-library("shinymanager")
-library("shinythemes")
-library("xlsx")
 library("formattable")
 library("ggrepel")
+library("pdftools")
+library("plotly")
 library("RColorBrewer")
+library("shiny")
+library("shinyalert")
+library("shinydashboard")
+library("shinyjs")
+library("shinymanager")
+library("shinythemes")
+library("shinyWidgets")
 library("showtext")
+library("xlsx")
 
 # Load function
 source("Module.R", encoding = "UTF-8")
@@ -27,17 +29,17 @@ showtext_auto()
 showtext_opts(dpi = 112)
 
 # data.frame with credentials info
-credentials <- readRDS("DB/credentials.rds")
+credentials <- load_data("credentials")
 
 # Load data
-search.data    <- readRDS("DB/search.data.rds")
-search.index   <- readRDS("DB/search.index.rds")
+search.data    <- load_data("search.data")
+search.index   <- load_data("search.index")
 search.default <- length(search.index)
 search.label   <- names(search.index[[search.default]])
 search.id      <- c("search.major", "search.std", "search.year", "search.site", "search.coop", "search.num", "search.analy")
 search.width   <- c(2, 2, 1, 2, 2, 2, 1)
 
-labor.data <- readRDS("DB/labor.data.rds")
+labor.data <- load_data("labor.data")
 
 #########################################################################################################################
 ### Define UI
@@ -222,42 +224,113 @@ ui <- dashboardPage(
       ############################
       ### Graph tab content
       ############################
-      
       tabItem(
         tabName = "graph",
         
         fluidPage(
-          titlePanel("품목별 상세 비교 그래프"),
-          fluidRow(
-            box(
-              column(3,
-                     selectizeInput("graph.category", label = "대분류 선택",
-                                    choices = sort(unique(make_graphdata(search.data[[search.default]])$대분류)),  
-                                    selected = "덕트", multiple = FALSE)
-              ), 
-              
-              column(3, 
-                     radioGroupButtons("graph.contract", "계약 여부",
-                                       choiceNames = list("계약", "비계약"),
-                                       choiceValues = list("계약", "비계약"))
-              ),
-              
-              column(6,
-                     pickerInput(
-                       inputId = "graph.site", label = "[현장-협력사-연도] 선택",
-                       choices = make_graphdata(search.data[[search.default]])[make_graphdata(search.data[[search.default]])$대분류 == '덕트', ]$newsite,
-                       options = list(`actions-box` = TRUE, 
-                                      `selected-text-format` = paste0("count > ", length(sort(unique(make_graphdata(search.data[[search.default]])$newsite)))),
-                                      `count-selected-text` = "전체"),
-                       multiple = TRUE)
-              )
+          tabsetPanel(
+            # First sub tab
+            tabPanel("규격별 업체별 그래프",
+                     br(),
+                     fluidRow(
+                       box(
+                         column(2,
+                                selectizeInput("graph.category1", label = "대분류:",
+                                               choices = sort(unique(make_graphdata(search.data[[search.default]])$대분류)),  
+                                               selected = "덕트", multiple = FALSE)
+                         ), 
+                         column(2, 
+                                radioGroupButtons("graph.contract1", "계약 여부",
+                                                  choiceNames = list("계약", "비계약"),
+                                                  choiceValues = list("계약", "비계약"))
+                         ),
+                         column(2,
+                                pickerInput(
+                                  inputId = "graph.site1",
+                                  label = "현장:",
+                                  choices = search.data[[search.default]][search.data[[search.default]]$대분류 == '덕트', ]$현장,
+                                  options = list(`actions-box` = TRUE, 
+                                                 `selected-text-format` = paste0("count > ", length(sort(unique(search.data[[search.default]]$현장)))),
+                                                 `count-selected-text` = "전체",
+                                                 `live-search`  = TRUE),
+                                  multiple = TRUE)
+                         ),
+                         column(2,
+                                pickerInput(
+                                  inputId = "graph.coop1",
+                                  label = "협력사:",
+                                  choices = search.data[[search.default]][search.data[[search.default]]$대분류 == '덕트', ]$협력사,
+                                  options = list(`actions-box` = TRUE, 
+                                                 `selected-text-format` = paste0("count > ", length(sort(unique(search.data[[search.default]]$협력사)))),
+                                                 `count-selected-text` = "전체",
+                                                 `live-search`  = TRUE),
+                                  multiple = TRUE)
+                         ),
+                         column(3,
+                                pickerInput(
+                                  inputId = "graph.combi1", 
+                                  label = "상세 선택",
+                                  choices = make_graphdata(search.data[[search.default]])[make_graphdata(search.data[[search.default]])$대분류 == '덕트', ]$combi,
+                                  options = list(`actions-box` = TRUE, 
+                                                 `selected-text-format` = paste0("count > ", length(sort(unique(make_graphdata(search.data[[search.default]])$combi)))),
+                                                 `count-selected-text` = "전체",
+                                                 `live-search`  = TRUE),
+                                  multiple = TRUE)
+                         ),
+                         width = NULL
+                       )
+                     ),
+                     br(),
+                     plotlyOutput("graph.by.stand"),
+                     br(), br(),
+                     DT::dataTableOutput("graph.summary")
+            ),
+            
+            # Second sub tab
+            tabPanel("년도별 업체별 그래프",
+                     br(),
+                     fluidRow(
+                       box(
+                         column(2,
+                                selectizeInput("graph.category2", label = "대분류:",
+                                               choices = sort(unique(make_graphdata(search.data[[search.default]])$대분류)),  
+                                               selected = "덕트", multiple = FALSE)
+                         ), 
+                         column(2, 
+                                radioGroupButtons("graph.contract2", "계약 여부",
+                                                  choiceNames = list("계약", "비계약"),
+                                                  choiceValues = list("계약", "비계약"))
+                         ),
+                         column(2,
+                                pickerInput(
+                                  inputId = "graph.site2",
+                                  label = "현장:",
+                                  choices = search.data[[search.default]][search.data[[search.default]]$대분류 == '덕트', ]$현장,
+                                  options = list(`actions-box` = TRUE, 
+                                                 `selected-text-format` = paste0("count > ", length(sort(unique(search.data[[search.default]]$현장)))),
+                                                 `count-selected-text` = "전체",
+                                                 `live-search`  = TRUE),
+                                  multiple = TRUE)
+                         ),
+                         column(2,
+                                pickerInput(
+                                  inputId = "graph.coop2",
+                                  label = "협력사:",
+                                  choices = search.data[[search.default]][search.data[[search.default]]$대분류 == '덕트', ]$협력사,
+                                  options = list(`actions-box` = TRUE, 
+                                                 `selected-text-format` = paste0("count > ", length(sort(unique(search.data[[search.default]]$협력사)))),
+                                                 `count-selected-text` = "전체",
+                                                 `live-search`  = TRUE),
+                                  multiple = TRUE)
+                         ),
+                         width = NULL
+                       )
+                     ),
+                     br(),
+                     plotlyOutput("graph.by.year"),
             )
-          ),
-          
-          plotOutput("graph.bar"),
-          br(), br(),
-          DT::dataTableOutput("graph.summary")
-        )   
+          )
+        )
       ),
       
       ############################
@@ -303,7 +376,7 @@ server <- function(input, output, session) {
                                  }'}))
   
   # Define memory
-  memory <- reactiveValues(logs = readRDS("DB/logs.rds"), 
+  memory <- reactiveValues(logs = load_data("logs"), 
                            search.table = search.data[[search.default]], 
                            search.data  = search.data[[search.default]], 
                            search.index = search.index[[search.default]], 
@@ -380,9 +453,9 @@ server <- function(input, output, session) {
       if (memory$response$search.save == "")
         memory$response$search.save <- format(Sys.time(), tz = "Asia/Seoul")
       search.data[[memory$response$search.save]] <<- memory$search.data
-      saveRDS(search.data, file = "DB/search.data.rds")
+      save_data(search.data)
       search.index[[memory$response$search.save]] <<- make_index(memory$search.data, search.label)
-      saveRDS(search.index, file = "DB/search.index.rds")
+      save_data(search.index)
       
       updateSelectInput(session, inputId = "search.list", choices = rev(names(search.data)), selected = rev(names(search.data))[1])
       if (length(search.data) > 1)
@@ -486,9 +559,9 @@ server <- function(input, output, session) {
       memory$search.sheet$품명 <- gsub("[[:blank:][:punct:]]", "", memory$search.sheet$품명)
       data.temp <- rbind(memory$search.sheet[colnames(search.data[[search.default]])], search.data[[search.default]])
       search.data[[memory$response$search.update]] <<- data.temp
-      saveRDS(search.data, file = "DB/search.data.rds")
+      save_data(search.data)
       search.index[[memory$response$search.update]] <<- make_index(data.temp, search.label)
-      saveRDS(search.index, file = "DB/search.index.rds")
+      save_data(search.index)
       
       updateSelectInput(session, inputId = "search.list", choices = rev(names(search.data)), selected = rev(names(search.data))[1])
       memory$search.sheet <- NULL
@@ -546,9 +619,9 @@ server <- function(input, output, session) {
     if (memory$response$search.remove) {
       delete.name <- input$search.list
       search.data[[delete.name]] <<- NULL
-      saveRDS(search.data, file = "DB/search.data.rds")
+      save_data(search.data)
       search.index[[delete.name]] <<- NULL
-      saveRDS(search.index, file = "DB/search.index.rds")
+      save_data(search.index)
       
       updateSelectInput(session, inputId = "search.list", choices = rev(names(search.data)), selected = rev(names(search.data))[1])
       if (length(search.data) == 1) 
@@ -563,10 +636,10 @@ server <- function(input, output, session) {
   #########################################################
   ### Compare tab
   #########################################################
-  
-  output$cmp.example1 <- downloadHandler(filename = paste0("2017-5-0544_NCK_그린빌더스", ".xlsx"), content = function(file) write.xlsx2(readRDS("DB/cmp.example.rds")[[1]], file, row.names = FALSE))
-  output$cmp.example2 <- downloadHandler(filename = paste0("2017-5-0544_NCK_성현기공", ".xlsx"), content = function(file) write.xlsx2(readRDS("DB/cmp.example.rds")[[2]], file, row.names = FALSE))
-  output$cmp.example3 <- downloadHandler(filename = paste0("2017-5-0544_NCK_유창이엔지니어링", ".xlsx"), content = function(file) write.xlsx2(readRDS("DB/cmp.example.rds")[[3]], file, row.names = FALSE))
+  cmp.example <- load_data("cmp.example")
+  output$cmp.example1 <- downloadHandler(filename = paste0("2017-5-0544_NCK_그린빌더스", ".xlsx"), content = function(file) write.xlsx2(cmp.example[[1]], file, row.names = FALSE))
+  output$cmp.example2 <- downloadHandler(filename = paste0("2017-5-0544_NCK_성현기공", ".xlsx"), content = function(file) write.xlsx2(cmp.example[[2]], file, row.names = FALSE))
+  output$cmp.example3 <- downloadHandler(filename = paste0("2017-5-0544_NCK_유창이엔지니어링", ".xlsx"), content = function(file) write.xlsx2(cmp.example[[3]], file, row.names = FALSE))
   
   observeEvent(input$cmp.sheet, {
     memory$tempdata <- list()
@@ -674,8 +747,9 @@ server <- function(input, output, session) {
   ### Analysis tab
   #########################################################
   # Download example sheet
+  analy.example <- load_data("analy.example")
   output$analy.example <- downloadHandler(filename = paste0("2019-5-1808_동우화인켐 평택_세현이엔지_계약", ".xlsx"), 
-                                          content = function(file) write.xlsx2(readRDS("DB/analy.example.rds"), file, row.names = FALSE))
+                                          content = function(file) write.xlsx2(analy.example, file, row.names = FALSE))
   
   # Analyze
   observeEvent(input$analy.sheet, {
@@ -809,7 +883,7 @@ server <- function(input, output, session) {
   observeEvent(memory$response$labor.update, {
     if (memory$response$labor.update) {
       labor.data[[format(Sys.time(), tz = "Asia/Seoul")]] <<- memory$labor.data
-      saveRDS(labor.data, file = "DB/labor.data.rds")
+      save_data(labor.data)
       updateSelectInput(session, inputId = "labor.index", choices = rev(names(labor.data)))
       enable("labor.remove")
       disable("labor.update")
@@ -849,7 +923,7 @@ server <- function(input, output, session) {
     if (memory$response$labor.remove) {
       if (length(labor.data) > 1) {
         labor.data[input$labor.index] <<- NULL
-        saveRDS(labor.data, file = "DB/labor.data.rds")
+        save_data(labor.data)
         shinyalert(title = "데이터가 삭제되었습니다.", text = input$labor.index, type = "success", closeOnClickOutside = TRUE, confirmButtonText = "확인")
         updateSelectInput(session, inputId = "labor.index", choices = rev(names(labor.data)))
       } else {
@@ -865,50 +939,71 @@ server <- function(input, output, session) {
   ### graph tab
   #########################################################
   
-  # update picker input
-  observeEvent(c(input$graph.category, input$graph.contract), {
-    tmp <- memory$graph.data %>% filter(대분류 == input$graph.category &
-                                             계약여부 == input$graph.contract)
-    a
-    updatePickerInput(session = session, inputId = "graph.site",
-                      choices = unique(tmp$newsite))
+  ### first sub tab - 규격별 업체별 그래프
+  # update inputs
+  observeEvent(c(input$graph.category1, input$graph.contract1), {
+    tmp <- memory$graph.data %>% filter(대분류 == input$graph.category1 &
+                                             계약여부 == input$graph.contract1)
+    
+    updatePickerInput(session = session, 
+                      inputId = "graph.site1",
+                      choices = unique(tmp$현장))
   })
   
-  observeEvent(c(input$graph.category, input$graph.contract, input$graph.site), {
-    memory$graph.data.selected <- memory$graph.data %>% filter(newsite %in% input$graph.site,
-                                                               대분류 == input$graph.category,
-                                                               계약여부 == input$graph.contract)
+  observeEvent(c(input$graph.category1, input$graph.contract1, input$graph.site1), {
+    tmp <- memory$graph.data %>% filter(대분류 == input$graph.category1 &
+                                             계약여부 == input$graph.contract1 &
+                                             현장 %in% input$graph.site1)
+    
+    updatePickerInput(session = session, 
+                      inputId = "graph.coop1",
+                      choices = unique(tmp$협력사))
+  })
+  
+  observeEvent(c(input$graph.category1, input$graph.contract1, input$graph.site1, input$graph.coop1), {
+    tmp <- memory$graph.data %>% filter(대분류 == input$graph.category1 &
+                                             계약여부 == input$graph.contract1 &
+                                             현장 %in% input$graph.site1 &
+                                             협력사 %in% input$graph.coop1)
+    
+    updatePickerInput(session = session, 
+                      inputId = "graph.combi1",
+                      choices = unique(tmp$combi))
+  })
+  
+  observeEvent(c(input$graph.category1, input$graph.contract1, input$graph.site1, input$graph.coop1, input$graph.combi1), {
+    memory$graph.data.selected1 <- memory$graph.data %>% filter(현장 %in% input$graph.site1,
+                                                                  협력사 %in% input$graph.coop1,
+                                                                  combi %in% input$graph.combi1,
+                                                                  대분류 == input$graph.category1,
+                                                                  계약여부 == input$graph.contract1)
     
   })
   
-  output$graph.bar <- renderPlot({
-    colourCount = length(unique(memory$graph.data.selected$newsite))
-    getPalette = colorRampPalette(brewer.pal((length(unique(memory$graph.data.selected$newsite)) / 8) + 1, "Spectral"))
+  # outputs
+  output$graph.by.stand <- renderPlotly({
     
-    ggplot(memory$graph.data.selected, aes(x=규격, y=자재비.단가, fill=reorder(newsite, 자재비.단가))) +
-      
-      geom_bar(stat="identity", width=0.7, position = position_dodge(width = 0.8, preserve = "single")) +
-      
-      coord_cartesian(ylim= c(min(memory$graph.data.selected$자재비.단가) * 0.9, max(memory$graph.data.selected$자재비.단가) * 1.1)) +
-      
-      labs(fill="현장 - 협력사 - 연도")+
-      xlab("규격") +
-      ylab("자재비 단가") +
-      theme_bw() +
-      scale_fill_manual(values = getPalette(colourCount))
+    bar <- plot_ly(memory$graph.data.selected1, x=~규격, y=~자재비.단가,
+                   color = ~reorder(combi, 자재비.단가))  %>%
+      add_bars() %>% 
+      layout(title = "규격별 업체별 그래프",
+             margin = list(t = 50),
+             xaxis=list(title="규격"),
+             yaxis=list(title="가격",
+                        tickformat = 'digits'))
+    
   })
   
-  
-  observeEvent(memory$graph.data.selected, {
-    smry <- data.frame(matrix(nrow = 3, ncol = length(unique(memory$graph.data.selected$규격))))
+  observeEvent(memory$graph.data.selected1, {
+    smry <- data.frame(matrix(nrow = 3, ncol = length(unique(memory$graph.data.selected1$규격))))
     smry[is.na(smry)] <- 0
-    size_list <- sort(unique(memory$graph.data.selected$규격))
+    size_list <- sort(unique(memory$graph.data.selected1$규격))
     colnames(smry) <- size_list
     rownames(smry) <- c('최소값', '중간값', '최대값')
     
-    if (nrow(memory$graph.data.selected) != 0){
+    if (nrow(memory$graph.data.selected1) != 0){
       for (i in 1:length(size_list)){
-        tmp <- memory$graph.data.selected %>% filter(규격 == size_list[i])
+        tmp <- memory$graph.data.selected1 %>% filter(규격 == size_list[i])
         smry[1, i] <- paste(formatC(min(tmp$자재비.단가) , digits = 2, big.mark = ',', format = 'd'), '원')
         smry[2, i] <- paste(formatC(median(tmp$자재비.단가) , digits = 2, big.mark = ',', format = 'd'), '원')
         smry[3, i] <- paste(formatC(max(tmp$자재비.단가) , digits = 2, big.mark = ',', format = 'd'), '원')
@@ -916,6 +1011,53 @@ server <- function(input, output, session) {
     }
     
     output$graph.summary <- DT::renderDataTable(datatable(smry))
+    
+  })
+  
+  ### Second sub tab - 년도별 업체별 그래프
+  # update inputs
+  observeEvent(c(input$graph.category2, input$graph.contract2), {
+    tmp <- memory$graph.data %>% filter(대분류 == input$graph.category2 &
+                                             계약여부 == input$graph.contract2)
+    
+    updatePickerInput(session = session, 
+                      inputId = "graph.site2",
+                      choices = unique(tmp$현장))
+  })
+  
+  observeEvent(c(input$graph.category2, input$graph.contract2, input$graph.site2), {
+    tmp <- memory$graph.data %>% filter(대분류 == input$graph.category2 &
+                                             계약여부 == input$graph.contract2 &
+                                             현장 %in% input$graph.site2)
+    
+    updatePickerInput(session = session, 
+                      inputId = "graph.coop2",
+                      choices = unique(tmp$협력사))
+  })
+  
+  observeEvent(c(input$graph.category2, input$graph.contract2, input$graph.site2, input$graph.coop2), {
+    memory$graph.data.selected2 <- memory$graph.data %>% filter(현장 %in% input$graph.site2,
+                                                                  협력사 %in% input$graph.coop2,
+                                                                  대분류 == input$graph.category2,
+                                                                  계약여부 == input$graph.contract2)
+    
+    # outputs
+    observeEvent(c(input$graph.category2, input$graph.contract2, input$graph.site2, input$graph.coop2), {
+      output$graph.by.year <- renderPlotly({
+        
+        bar <- plot_ly(memory$graph.data.selected2, 
+                       x=~연도, 
+                       y=~자재비.단가,
+                       color = ~reorder(label, 연도))  %>%
+          add_bars() %>% 
+          layout(title = "년도별 업체별 그래프",
+                 margin = list(t = 50),
+                 xaxis=list(title="년도"),
+                 yaxis=list(title="가격",
+                            tickformat = 'digits'))
+        
+      })
+    })
     
   })
   
