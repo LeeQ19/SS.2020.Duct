@@ -266,7 +266,8 @@ ui <- dashboardPage(
                                                  `live-search`  = TRUE),
                                   multiple = TRUE)
                          ),
-                         column(3,
+                         #### 수정 ####
+                         column(2,
                                 pickerInput(
                                   inputId = "graph.combi1", 
                                   label = "상세 선택",
@@ -277,6 +278,18 @@ ui <- dashboardPage(
                                                  `live-search`  = TRUE),
                                   multiple = TRUE)
                          ),
+                         column(2, 
+                                pickerInput(
+                                  inputId = "graph.contnum1", 
+                                  label = "계약번호:",
+                                  choices = make_graphdata(search.data[[search.default]])[make_graphdata(search.data[[search.default]])$대분류 == '덕트', ]$계약번호,
+                                  options = list(`actions-box` = TRUE, 
+                                                 `selected-text-format` = paste0("count > ", length(sort(unique(make_graphdata(search.data[[search.default]])$계약번호)))),
+                                                 `count-selected-text` = "전체",
+                                                 `live-search`  = TRUE),
+                                  multiple = TRUE)
+                         ),
+                         #### 추가 끝 ####
                          width = NULL
                        )
                      ),
@@ -301,6 +314,13 @@ ui <- dashboardPage(
                                                   choiceNames = list("계약", "비계약"),
                                                   choiceValues = list("계약", "비계약"))
                          ),
+                         column(2,
+                                pickerInput("graph.standard2", 
+                                            label = "규격:",
+                                            choices = sort(unique(make_graphdata(search.data[[search.default]])[make_graphdata(search.data[[search.default]])$대분류 == '덕트', ]$규격)),  
+                                            selected = "0.8T", 
+                                            multiple = FALSE)
+                         ), 
                          column(2,
                                 pickerInput(
                                   inputId = "graph.site2",
@@ -331,7 +351,7 @@ ui <- dashboardPage(
             )
           )
         )
-      ),
+      ), 
       
       ############################
       ### Log tab content
@@ -972,11 +992,24 @@ server <- function(input, output, session) {
   })
   
   observeEvent(c(input$graph.category1, input$graph.contract1, input$graph.site1, input$graph.coop1, input$graph.combi1), {
-    memory$graph.data.selected1 <- memory$graph.data %>% filter(현장 %in% input$graph.site1,
-                                                                  협력사 %in% input$graph.coop1,
-                                                                  combi %in% input$graph.combi1,
-                                                                  대분류 == input$graph.category1,
-                                                                  계약여부 == input$graph.contract1)
+    tmp <- memory$graph.data %>% filter(대분류 == input$graph.category1 &
+                                             계약여부 == input$graph.contract1 &
+                                             현장 %in% input$graph.site1 &
+                                             협력사 %in% input$graph.coop1 &
+                                             combi %in% input$graph.combi1)
+    
+    updatePickerInput(session = session, 
+                      inputId = "graph.contnum1",
+                      choices = unique(tmp$계약번호))
+  })
+  
+  observeEvent(c(input$graph.category1, input$graph.contract1, input$graph.site1, input$graph.coop1, input$graph.combi1, input$graph.contnum1), {
+    memory$graph.data.selected1 <- unique(memory$graph.data %>% filter(현장 %in% input$graph.site1,
+                                                                         협력사 %in% input$graph.coop1,
+                                                                         combi %in% input$graph.combi1,
+                                                                         대분류 == input$graph.category1,
+                                                                         계약여부 == input$graph.contract1,
+                                                                         계약번호 %in% input$graph.contnum1))
     
   })
   
@@ -984,7 +1017,7 @@ server <- function(input, output, session) {
   output$graph.by.stand <- renderPlotly({
     
     bar <- plot_ly(memory$graph.data.selected1, x=~규격, y=~자재비.단가,
-                   color = ~reorder(combi, 자재비.단가))  %>%
+                   color = ~reorder(uniq.label, 자재비.단가))  %>%
       add_bars() %>% 
       layout(title = "규격별 업체별 그래프",
              margin = list(t = 50),
@@ -1021,13 +1054,24 @@ server <- function(input, output, session) {
                                              계약여부 == input$graph.contract2)
     
     updatePickerInput(session = session, 
+                      inputId = "graph.standard2",
+                      choices = unique(tmp$규격))
+  })
+  
+  observeEvent(c(input$graph.category2, input$graph.contract2, input$graph.standard2), {
+    tmp <- memory$graph.data %>% filter(대분류 == input$graph.category2 &
+                                             계약여부 == input$graph.contract2 &
+                                             규격 == input$graph.standard2)
+    
+    updatePickerInput(session = session, 
                       inputId = "graph.site2",
                       choices = unique(tmp$현장))
   })
   
-  observeEvent(c(input$graph.category2, input$graph.contract2, input$graph.site2), {
+  observeEvent(c(input$graph.category2, input$graph.contract2, input$graph.standard2, input$graph.site2), {
     tmp <- memory$graph.data %>% filter(대분류 == input$graph.category2 &
                                              계약여부 == input$graph.contract2 &
+                                             규격 == input$graph.standard2 &
                                              현장 %in% input$graph.site2)
     
     updatePickerInput(session = session, 
@@ -1035,30 +1079,30 @@ server <- function(input, output, session) {
                       choices = unique(tmp$협력사))
   })
   
-  observeEvent(c(input$graph.category2, input$graph.contract2, input$graph.site2, input$graph.coop2), {
-    memory$graph.data.selected2 <- memory$graph.data %>% filter(현장 %in% input$graph.site2,
-                                                                  협력사 %in% input$graph.coop2,
-                                                                  대분류 == input$graph.category2,
-                                                                  계약여부 == input$graph.contract2)
-    
-    # outputs
-    observeEvent(c(input$graph.category2, input$graph.contract2, input$graph.site2, input$graph.coop2), {
-      output$graph.by.year <- renderPlotly({
-        
-        bar <- plot_ly(memory$graph.data.selected2, 
-                       x=~연도, 
-                       y=~자재비.단가,
-                       color = ~reorder(label, 연도))  %>%
-          add_bars() %>% 
-          layout(title = "년도별 업체별 그래프",
-                 margin = list(t = 50),
-                 xaxis=list(title="년도"),
-                 yaxis=list(title="가격",
-                            tickformat = 'digits'))
-        
-      })
+  observeEvent(c(input$graph.category2, input$graph.contract2, input$graph.standard2, input$graph.site2, input$graph.coop2), {
+    memory$graph.data.selected2 <- unique(memory$graph.data %>% filter(현장 %in% input$graph.site2,
+                                                                         협력사 %in% input$graph.coop2,
+                                                                         대분류 == input$graph.category2,
+                                                                         규격 == input$graph.standard2,
+                                                                         계약여부 == input$graph.contract2))
+  })
+  
+  # outputs
+  observeEvent(c(input$graph.category2, input$graph.contract2, input$graph.standard2, input$graph.site2, input$graph.coop2), {
+    output$graph.by.year <- renderPlotly({
+      
+      bar <- plot_ly(memory$graph.data.selected2, 
+                     x=~연도, 
+                     y=~자재비.단가,
+                     color = ~reorder(label, 연도))  %>%
+        add_bars() %>% 
+        layout(title = "년도별 업체별 그래프",
+               margin = list(t = 50),
+               xaxis=list(title="년도"),
+               yaxis=list(title="가격",
+                          tickformat = 'digits'))
+      
     })
-    
   })
   
   

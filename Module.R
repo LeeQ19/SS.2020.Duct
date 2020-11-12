@@ -381,7 +381,13 @@ match_table <- function(table, data){
 }
 
 # Add column for graph and select row
-make_graphdata <- function(data){
-  return(data %>% (function (x) {x[(complete.cases(x[ , c("자재비.단가")]) & x[ , c("자재비.단가")] > 0), ]}) %>% mutate(combi = paste(현장, '-', 협력사, '-', 연도),
-                                                                                                               label = paste(현장, '-', 협력사)))
+# Add column for graph and select row
+make_graphdata <- function(data) {
+  return(unique(data 
+                %>% (function (x) {x[(complete.cases(x[ , c("자재비.단가")]) & x[ , c("자재비.단가")] > 0), ]}) 
+                %>% select(대분류, 규격, 자재비.단가, 연도, 현장, 협력사, 계약번호, 계약여부)
+                %>% mutate(combi = paste(현장, '-', 협력사, '-', 연도),
+                           label = paste(현장, '-', 협력사, '-', 계약번호),
+                           uniq.label = paste(현장, '-', 협력사, '-', 연도, '-', 계약번호))
+  ))
 }
