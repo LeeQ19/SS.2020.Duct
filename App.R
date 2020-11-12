@@ -63,7 +63,7 @@ ui <- dashboardPage(
       menuItem("분석 그래프", tabName = "graph",  icon = icon("list")), 
       menuItem("사용자 로그", tabName = "log",    icon = icon("list"))
     ), 
-    tags$footer("ver 3.4.0", align = "right", style = "font-size: 15px; position:absolute; bottom:0; width:100%; padding:10px")
+    tags$footer("ver 4.0.0", align = "right", style = "font-size: 15px; position:absolute; bottom:0; width:100%; padding:10px")
   ), 
   
   #########################################################
