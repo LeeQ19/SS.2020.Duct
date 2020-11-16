@@ -41,6 +41,11 @@ search.width   <- c(2, 2, 1, 2, 2, 2, 1)
 
 labor.data <- load_data("labor.data")
 
+site.selected <- search.data[[search.default]][search.data[[search.default]]$대분류 == '덕트', ]$현장
+coop.selected <- search.data[[search.default]][search.data[[search.default]]$대분류 == '덕트', ]$협력사
+combi.selected <- make_graphdata(search.data[[search.default]])[make_graphdata(search.data[[search.default]])$대분류 == '덕트', ]$combi
+contnum.selected <- search.data[[search.default]][search.data[[search.default]]$대분류 == '덕트', ]$계약번호
+
 #########################################################################################################################
 ### Define UI
 #########################################################################################################################
@@ -63,7 +68,7 @@ ui <- dashboardPage(
       menuItem("분석 그래프", tabName = "graph",  icon = icon("list")), 
       menuItem("사용자 로그", tabName = "log",    icon = icon("list"))
     ), 
-    tags$footer("ver 4.1.0", align = "right", style = "font-size: 15px; position:absolute; bottom:0; width:100%; padding:10px")
+    tags$footer("ver 4.2.0", align = "right", style = "font-size: 15px; position:absolute; bottom:0; width:100%; padding:10px")
   ), 
   
   #########################################################
@@ -237,7 +242,8 @@ ui <- dashboardPage(
                          column(2,
                                 selectizeInput("graph.category1", label = "대분류:",
                                                choices = sort(unique(make_graphdata(search.data[[search.default]])$대분류)),  
-                                               selected = "덕트", multiple = FALSE)
+                                               selected = "덕트", 
+                                               multiple = FALSE)
                          ), 
                          column(2, 
                                 radioGroupButtons("graph.contract1", "계약 여부",
@@ -248,9 +254,9 @@ ui <- dashboardPage(
                                 pickerInput(
                                   inputId = "graph.site1",
                                   label = "현장:",
-                                  choices = search.data[[search.default]][search.data[[search.default]]$대분류 == '덕트', ]$현장,
+                                  choices = site.selected,
+                                  selected = site.selected,
                                   options = list(`actions-box` = TRUE, 
-                                                 `selected-text-format` = paste0("count > ", length(sort(unique(search.data[[search.default]]$현장)))),
                                                  `count-selected-text` = "전체",
                                                  `live-search`  = TRUE),
                                   multiple = TRUE)
@@ -259,21 +265,21 @@ ui <- dashboardPage(
                                 pickerInput(
                                   inputId = "graph.coop1",
                                   label = "협력사:",
-                                  choices = search.data[[search.default]][search.data[[search.default]]$대분류 == '덕트', ]$협력사,
+                                  choices = coop.selected,
+                                  selected = coop.selected,
                                   options = list(`actions-box` = TRUE, 
-                                                 `selected-text-format` = paste0("count > ", length(sort(unique(search.data[[search.default]]$협력사)))),
                                                  `count-selected-text` = "전체",
                                                  `live-search`  = TRUE),
                                   multiple = TRUE)
                          ),
-                         #### 수정 ####
+                         
                          column(2,
                                 pickerInput(
                                   inputId = "graph.combi1", 
                                   label = "상세 선택",
-                                  choices = make_graphdata(search.data[[search.default]])[make_graphdata(search.data[[search.default]])$대분류 == '덕트', ]$combi,
+                                  choices = combi.selected,
+                                  selected = combi.selected,
                                   options = list(`actions-box` = TRUE, 
-                                                 `selected-text-format` = paste0("count > ", length(sort(unique(make_graphdata(search.data[[search.default]])$combi)))),
                                                  `count-selected-text` = "전체",
                                                  `live-search`  = TRUE),
                                   multiple = TRUE)
@@ -282,21 +288,26 @@ ui <- dashboardPage(
                                 pickerInput(
                                   inputId = "graph.contnum1", 
                                   label = "계약번호:",
-                                  choices = make_graphdata(search.data[[search.default]])[make_graphdata(search.data[[search.default]])$대분류 == '덕트', ]$계약번호,
+                                  choices = contnum.selected,
+                                  selected = contnum.selected,
                                   options = list(`actions-box` = TRUE, 
-                                                 `selected-text-format` = paste0("count > ", length(sort(unique(make_graphdata(search.data[[search.default]])$계약번호)))),
                                                  `count-selected-text` = "전체",
                                                  `live-search`  = TRUE),
                                   multiple = TRUE)
                          ),
-                         #### 추가 끝 ####
                          width = NULL
                        )
                      ),
                      br(),
+                     h3('선택 데이터 확인'),
+                     DT::dataTableOutput("graph.selected1"),
+                     br(), br(),
                      plotlyOutput("graph.by.stand"),
                      br(), br(),
-                     DT::dataTableOutput("graph.summary")
+                     h3("데이터 기본 통계 요약"),
+                     DT::dataTableOutput("graph.summary"),
+                     br(), br(),
+                     
             ),
             
             # Second sub tab
@@ -325,9 +336,9 @@ ui <- dashboardPage(
                                 pickerInput(
                                   inputId = "graph.site2",
                                   label = "현장:",
-                                  choices = search.data[[search.default]][search.data[[search.default]]$대분류 == '덕트', ]$현장,
+                                  choices = site.selected,
+                                  selected = site.selected,
                                   options = list(`actions-box` = TRUE, 
-                                                 `selected-text-format` = paste0("count > ", length(sort(unique(search.data[[search.default]]$현장)))),
                                                  `count-selected-text` = "전체",
                                                  `live-search`  = TRUE),
                                   multiple = TRUE)
@@ -336,9 +347,9 @@ ui <- dashboardPage(
                                 pickerInput(
                                   inputId = "graph.coop2",
                                   label = "협력사:",
-                                  choices = search.data[[search.default]][search.data[[search.default]]$대분류 == '덕트', ]$협력사,
+                                  choices = coop.selected,
+                                  selected = coop.selected,
                                   options = list(`actions-box` = TRUE, 
-                                                 `selected-text-format` = paste0("count > ", length(sort(unique(search.data[[search.default]]$협력사)))),
                                                  `count-selected-text` = "전체",
                                                  `live-search`  = TRUE),
                                   multiple = TRUE)
@@ -347,6 +358,9 @@ ui <- dashboardPage(
                        )
                      ),
                      br(),
+                     h3('선택 데이터 확인'),
+                     DT::dataTableOutput("graph.selected2"),
+                     br(), br(),
                      plotlyOutput("graph.by.year"),
             )
           )
@@ -967,7 +981,8 @@ server <- function(input, output, session) {
     
     updatePickerInput(session = session, 
                       inputId = "graph.site1",
-                      choices = unique(tmp$현장))
+                      choices = unique(tmp$현장),
+                      selected = unique(tmp$현장))
   })
   
   observeEvent(c(input$graph.category1, input$graph.contract1, input$graph.site1), {
@@ -977,7 +992,8 @@ server <- function(input, output, session) {
     
     updatePickerInput(session = session, 
                       inputId = "graph.coop1",
-                      choices = unique(tmp$협력사))
+                      choices = unique(tmp$협력사),
+                      selected = unique(tmp$협력사))
   })
   
   observeEvent(c(input$graph.category1, input$graph.contract1, input$graph.site1, input$graph.coop1), {
@@ -988,7 +1004,8 @@ server <- function(input, output, session) {
     
     updatePickerInput(session = session, 
                       inputId = "graph.combi1",
-                      choices = unique(tmp$combi))
+                      choices = unique(tmp$combi),
+                      selected = unique(tmp$combi))
   })
   
   observeEvent(c(input$graph.category1, input$graph.contract1, input$graph.site1, input$graph.coop1, input$graph.combi1), {
@@ -1000,7 +1017,8 @@ server <- function(input, output, session) {
     
     updatePickerInput(session = session, 
                       inputId = "graph.contnum1",
-                      choices = unique(tmp$계약번호))
+                      choices = unique(tmp$계약번호),
+                      selected = unique(tmp$계약번호))
   })
   
   observeEvent(c(input$graph.category1, input$graph.contract1, input$graph.site1, input$graph.coop1, input$graph.combi1, input$graph.contnum1), {
@@ -1014,6 +1032,12 @@ server <- function(input, output, session) {
   })
   
   # outputs
+  observeEvent(memory$graph.data.selected1, {
+    output$graph.selected1 <- DT::renderDataTable(datatable(memory$graph.data.selected1 %>% 
+                                                              select(-combi, -label, -uniq.label)))
+    
+  })
+  
   output$graph.by.stand <- renderPlotly({
     
     bar <- plot_ly(memory$graph.data.selected1, x=~규격, y=~자재비.단가,
@@ -1047,6 +1071,7 @@ server <- function(input, output, session) {
     
   })
   
+  
   ### Second sub tab - 년도별 업체별 그래프
   # update inputs
   observeEvent(c(input$graph.category2, input$graph.contract2), {
@@ -1065,7 +1090,8 @@ server <- function(input, output, session) {
     
     updatePickerInput(session = session, 
                       inputId = "graph.site2",
-                      choices = unique(tmp$현장))
+                      choices = unique(tmp$현장),
+                      selected = unique(tmp$현장))
   })
   
   observeEvent(c(input$graph.category2, input$graph.contract2, input$graph.standard2, input$graph.site2), {
@@ -1076,7 +1102,8 @@ server <- function(input, output, session) {
     
     updatePickerInput(session = session, 
                       inputId = "graph.coop2",
-                      choices = unique(tmp$협력사))
+                      choices = unique(tmp$협력사),
+                      selected = unique(tmp$협력사))
   })
   
   observeEvent(c(input$graph.category2, input$graph.contract2, input$graph.standard2, input$graph.site2, input$graph.coop2), {
@@ -1088,6 +1115,12 @@ server <- function(input, output, session) {
   })
   
   # outputs
+  observeEvent(memory$graph.data.selected2, {
+    output$graph.selected2 <- DT::renderDataTable(datatable(memory$graph.data.selected2 %>% 
+                                                              select(-combi, -label, -uniq.label)))
+    
+  })
+  
   observeEvent(c(input$graph.category2, input$graph.contract2, input$graph.standard2, input$graph.site2, input$graph.coop2), {
     output$graph.by.year <- renderPlotly({
       
@@ -1104,7 +1137,6 @@ server <- function(input, output, session) {
       
     })
   })
-  
   
   #########################################################
   ### Log tab
