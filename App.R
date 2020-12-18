@@ -18,6 +18,7 @@ library("shinymanager")
 library("shinythemes")
 library("shinyWidgets")
 library("showtext")
+Sys.setenv(JAVA_HOME='C:/Program Files/Java/jre1.8.0_261')
 library("xlsx")
 
 # Load function
@@ -41,11 +42,6 @@ search.width   <- c(2, 2, 1, 2, 2, 2, 1)
 
 labor.data <- load_data("labor.data")
 
-site.selected <- search.data[[search.default]][search.data[[search.default]]$대분류 == '덕트', ]$현장
-coop.selected <- search.data[[search.default]][search.data[[search.default]]$대분류 == '덕트', ]$협력사
-combi.selected <- make_graphdata(search.data[[search.default]])[make_graphdata(search.data[[search.default]])$대분류 == '덕트', ]$combi
-contnum.selected <- search.data[[search.default]][search.data[[search.default]]$대분류 == '덕트', ]$계약번호
-
 #########################################################################################################################
 ### Define UI
 #########################################################################################################################
@@ -68,7 +64,7 @@ ui <- dashboardPage(
       menuItem("분석 그래프", tabName = "graph",  icon = icon("list")), 
       menuItem("사용자 로그", tabName = "log",    icon = icon("list"))
     ), 
-    tags$footer("ver 4.2.0", align = "right", style = "font-size: 15px; position:absolute; bottom:0; width:100%; padding:10px")
+    tags$footer("ver 4.3.0", align = "right", style = "font-size: 15px; position:absolute; bottom:0; width:100%; padding:10px")
   ), 
   
   #########################################################
@@ -97,6 +93,22 @@ ui <- dashboardPage(
         
         # Create a new row for table
         DT::dataTableOutput("search.table"), 
+        
+        # Calculate labor cost
+        fluidRow(
+          box(
+            column(2, 
+                   materialSwitch(inputId = "search.laborswitch", 
+                                  label = "노무비합계", 
+                                  status = "primary")
+            ),
+            column(10), 
+            width = NULL
+          )
+        ), 
+        
+        DT::dataTableOutput("search.labortable"),
+        DT::dataTableOutput("search.laborsummary"), 
         
         # Modify data
         fluidRow(
@@ -182,7 +194,10 @@ ui <- dashboardPage(
         ), 
         
         # Create a new row for table
-        DT::dataTableOutput("analy.stat"), 
+        DT::dataTableOutput("analy.stat"),
+        
+        DT::dataTableOutput("analy.labortable"),
+        DT::dataTableOutput("analy.laborsummary"),
         
         # Download button for table
         box(
@@ -242,8 +257,7 @@ ui <- dashboardPage(
                          column(2,
                                 selectizeInput("graph.category1", label = "대분류:",
                                                choices = sort(unique(make_graphdata(search.data[[search.default]])$대분류)),  
-                                               selected = "덕트", 
-                                               multiple = FALSE)
+                                               selected = "덕트", multiple = FALSE)
                          ), 
                          column(2, 
                                 radioGroupButtons("graph.contract1", "계약 여부",
@@ -254,9 +268,9 @@ ui <- dashboardPage(
                                 pickerInput(
                                   inputId = "graph.site1",
                                   label = "현장:",
-                                  choices = site.selected,
-                                  selected = site.selected,
+                                  choices = search.data[[search.default]][search.data[[search.default]]$대분류 == '덕트', ]$현장,
                                   options = list(`actions-box` = TRUE, 
+                                                 `selected-text-format` = paste0("count > ", length(sort(unique(search.data[[search.default]]$현장)))),
                                                  `count-selected-text` = "전체",
                                                  `live-search`  = TRUE),
                                   multiple = TRUE)
@@ -265,21 +279,21 @@ ui <- dashboardPage(
                                 pickerInput(
                                   inputId = "graph.coop1",
                                   label = "협력사:",
-                                  choices = coop.selected,
-                                  selected = coop.selected,
+                                  choices = search.data[[search.default]][search.data[[search.default]]$대분류 == '덕트', ]$협력사,
                                   options = list(`actions-box` = TRUE, 
+                                                 `selected-text-format` = paste0("count > ", length(sort(unique(search.data[[search.default]]$협력사)))),
                                                  `count-selected-text` = "전체",
                                                  `live-search`  = TRUE),
                                   multiple = TRUE)
                          ),
-                         
+                         #### 수정 ####
                          column(2,
                                 pickerInput(
                                   inputId = "graph.combi1", 
                                   label = "상세 선택",
-                                  choices = combi.selected,
-                                  selected = combi.selected,
+                                  choices = make_graphdata(search.data[[search.default]])[make_graphdata(search.data[[search.default]])$대분류 == '덕트', ]$combi,
                                   options = list(`actions-box` = TRUE, 
+                                                 `selected-text-format` = paste0("count > ", length(sort(unique(make_graphdata(search.data[[search.default]])$combi)))),
                                                  `count-selected-text` = "전체",
                                                  `live-search`  = TRUE),
                                   multiple = TRUE)
@@ -288,26 +302,21 @@ ui <- dashboardPage(
                                 pickerInput(
                                   inputId = "graph.contnum1", 
                                   label = "계약번호:",
-                                  choices = contnum.selected,
-                                  selected = contnum.selected,
+                                  choices = make_graphdata(search.data[[search.default]])[make_graphdata(search.data[[search.default]])$대분류 == '덕트', ]$계약번호,
                                   options = list(`actions-box` = TRUE, 
+                                                 `selected-text-format` = paste0("count > ", length(sort(unique(make_graphdata(search.data[[search.default]])$계약번호)))),
                                                  `count-selected-text` = "전체",
                                                  `live-search`  = TRUE),
                                   multiple = TRUE)
                          ),
+                         #### 추가 끝 ####
                          width = NULL
                        )
                      ),
                      br(),
-                     h3('선택 데이터 확인'),
-                     DT::dataTableOutput("graph.selected1"),
-                     br(), br(),
                      plotlyOutput("graph.by.stand"),
                      br(), br(),
-                     h3("데이터 기본 통계 요약"),
-                     DT::dataTableOutput("graph.summary"),
-                     br(), br(),
-                     
+                     DT::dataTableOutput("graph.summary")
             ),
             
             # Second sub tab
@@ -336,9 +345,9 @@ ui <- dashboardPage(
                                 pickerInput(
                                   inputId = "graph.site2",
                                   label = "현장:",
-                                  choices = site.selected,
-                                  selected = site.selected,
+                                  choices = search.data[[search.default]][search.data[[search.default]]$대분류 == '덕트', ]$현장,
                                   options = list(`actions-box` = TRUE, 
+                                                 `selected-text-format` = paste0("count > ", length(sort(unique(search.data[[search.default]]$현장)))),
                                                  `count-selected-text` = "전체",
                                                  `live-search`  = TRUE),
                                   multiple = TRUE)
@@ -347,9 +356,9 @@ ui <- dashboardPage(
                                 pickerInput(
                                   inputId = "graph.coop2",
                                   label = "협력사:",
-                                  choices = coop.selected,
-                                  selected = coop.selected,
+                                  choices = search.data[[search.default]][search.data[[search.default]]$대분류 == '덕트', ]$협력사,
                                   options = list(`actions-box` = TRUE, 
+                                                 `selected-text-format` = paste0("count > ", length(sort(unique(search.data[[search.default]]$협력사)))),
                                                  `count-selected-text` = "전체",
                                                  `live-search`  = TRUE),
                                   multiple = TRUE)
@@ -358,9 +367,6 @@ ui <- dashboardPage(
                        )
                      ),
                      br(),
-                     h3('선택 데이터 확인'),
-                     DT::dataTableOutput("graph.selected2"),
-                     br(), br(),
                      plotlyOutput("graph.by.year"),
             )
           )
@@ -416,7 +422,8 @@ server <- function(input, output, session) {
                            search.index = search.index[[search.default]], 
                            search.picker = list(choices = lapply(search.index[[search.default]], function (x) {sort(names(x))}), 
                                                 selected = lapply(search.index[[search.default]], function (x) {sort(names(x))})),
-                           graph.data = make_graphdata(search.data[[search.default]])
+                           graph.data = make_graphdata(search.data[[search.default]]),
+                           search.laborswitch = F
   )
   
   # Log in
@@ -454,6 +461,19 @@ server <- function(input, output, session) {
                                                %>% (function (dt) {dt$x$data[[1]] <- as.numeric(dt$x$data[[1]]); return(dt)})
                                                %>% formatCurrency(c("자재비.단가", "노무비.단가", "경비.단가"), currency = ' ￦', interval = 3, mark = ',', digit = 0, before = FALSE))
     memory$search.table.proxy <- dataTableProxy("search.table")
+    
+    if(memory$search.laborswitch == T){
+      labortable <- labor_making(memory$search.table, memory$labor.data)
+      laborsummary <- data.frame(
+        덕트공 = sum(as.numeric(labortable$덕트공), na.rm = T),
+        보통인부 = sum(as.numeric(labortable$보통인부), na.rm = T),
+        보온공 = sum(as.numeric(labortable$보온공), na.rm = T),
+        노무비_총합 = sum(as.numeric(labortable$덕트공), na.rm = T) * 168742 + sum(as.numeric(labortable$보통인부), na.rm = T) * 138290 + sum(as.numeric(labortable$보온공), na.rm = T) * 180707, 
+        실제_노무비_총합 = sum(as.numeric(memory$search.table$노무비.단가) * as.numeric(memory$search.table$수량), na.rm = T))
+      output$search.labortable <- DT::renderDataTable(datatable(labortable))
+      output$search.laborsummary <- DT::renderDataTable(datatable(laborsummary) %>% formatCurrency(c("노무비_총합", "실제_노무비_총합"), currency = ' ￦', interval = 3, mark = ',', digit = 0, before = FALSE))  
+      
+    }
   })
   
   # Edit table
@@ -468,6 +488,22 @@ server <- function(input, output, session) {
     # Replace data
     search.edit.temp$row <- as.integer(rownames(memory$search.table)[search.edit.temp$row])
     memory$search.data[search.edit.temp$row, search.edit.temp$col] <- DT::coerceValue(search.edit.temp$value, memory$search.data[search.edit.temp$row, search.edit.temp$col])
+    
+    if(input$search.laborswitch == T){
+      labortable <- labor_making(memory$search.table, memory$labor.data)
+      laborsummary <- data.frame(
+        덕트공 = sum(as.numeric(labortable$덕트공), na.rm = T),
+        보통인부 = sum(as.numeric(labortable$보통인부), na.rm = T),
+        보온공 = sum(as.numeric(labortable$보온공), na.rm = T),
+        노무비_총합 = sum(as.numeric(labortable$덕트공), na.rm = T) * 168742 + sum(as.numeric(labortable$보통인부), na.rm = T) * 138290 + sum(as.numeric(labortable$보온공), na.rm = T) * 180707, 
+        실제_노무비_총합 = sum(as.numeric(memory$search.table$노무비.단가) * as.numeric(memory$search.table$수량), na.rm = T))
+      output$search.labortable <- DT::renderDataTable(datatable(labortable))
+      output$search.laborsummary <- DT::renderDataTable(datatable(laborsummary) %>% formatCurrency(c("노무비_총합", "실제_노무비_총합"), currency = ' ￦', interval = 3, mark = ',', digit = 0, before = FALSE))  
+      
+    } else {
+      output$search.labortable <-NULL
+      output$search.laborsummary <-NULL
+    }
     
     enable("search.save")
     enable("search.discard")
@@ -667,6 +703,28 @@ server <- function(input, output, session) {
     }
   })
   
+  # Labor table
+  observeEvent(input$search.laborswitch, {
+    if(input$search.laborswitch == T){
+      memory$search.laborswitch <- T
+      labortable <- labor_making(memory$search.table, memory$labor.data)
+      laborsummary <- data.frame(
+        덕트공 = sum(as.numeric(labortable$덕트공), na.rm = T),
+        보통인부 = sum(as.numeric(labortable$보통인부), na.rm = T),
+        보온공 = sum(as.numeric(labortable$보온공), na.rm = T),
+        노무비_총합 = sum(as.numeric(labortable$덕트공), na.rm = T) * 168742 + sum(as.numeric(labortable$보통인부), na.rm = T) * 138290 + sum(as.numeric(labortable$보온공), na.rm = T) * 180707, 
+        실제_노무비_총합 = sum(as.numeric(memory$search.table$노무비.단가) * as.numeric(memory$search.table$수량), na.rm = T))
+      output$search.labortable <- DT::renderDataTable(datatable(labortable))
+      output$search.laborsummary <- DT::renderDataTable(datatable(laborsummary) %>% formatCurrency(c("노무비_총합", "실제_노무비_총합"), currency = ' ￦', interval = 3, mark = ',', digit = 0, before = FALSE))  
+      
+    } else {
+      memory$search.laborswitch <- F
+      output$search.labortable <-NULL
+      output$search.laborsummary <-NULL
+    }
+    
+  })
+  
   #########################################################
   ### Compare tab
   #########################################################
@@ -807,6 +865,18 @@ server <- function(input, output, session) {
                                              %>% formatStyle(columns = "자재비.단가", valueColumns = "가격차이", color = JS("value < 0 ? 'blue' : (value > 0 ? 'red' : 'green')")))
     memory$analy.stat.proxy <- dataTableProxy("analy.stat")
     
+    # labortable
+    labortable <- labor_making(memory$analy.sheet, memory$labor.data)
+    laborsummary <- data.frame(
+      덕트공 = sum(as.numeric(labortable$덕트공), na.rm = T),
+      보통인부 = sum(as.numeric(labortable$보통인부), na.rm = T),
+      보온공 = sum(as.numeric(labortable$보온공), na.rm = T),
+      노무비_총합 = sum(as.numeric(labortable$덕트공), na.rm = T) * 168742 + sum(as.numeric(labortable$보통인부), na.rm = T) * 138290 + sum(as.numeric(labortable$보온공), na.rm = T) * 180707, 
+      실제_노무비_총합 = sum(as.numeric(memory$analy.sheet$노무비.단가) * as.numeric(memory$analy.sheet$수량), na.rm = T))
+    output$analy.labortable <- DT::renderDataTable(datatable(labortable))
+    output$analy.laborsummary <- DT::renderDataTable(datatable(laborsummary) %>% formatCurrency(c("노무비_총합", "실제_노무비_총합"), currency = ' ￦', interval = 3, mark = ',', digit = 0, before = FALSE))  
+    
+    
     # Download stat
     output$analy.download <- downloadHandler(filename = paste0(input$analy.sheet$name, "_분석", ".xlsx"), 
                                              content = function(file) write.xlsx2(make_stat(memory$analy.sheet, search.data[[search.default]], 
@@ -863,6 +933,18 @@ server <- function(input, output, session) {
     memory$analy.stat[analy.edited$row, ] <- make_stat(memory$analy.sheet[analy.edited$row, ], search.data[[search.default]], 
                                                        options = list(sign = input$analy.sign, year = input$analy.year, site = input$analy.site, coop = input$analy.coop), Download = FALSE)
     replaceData(memory$analy.stat.proxy, memory$analy.stat, resetPaging = FALSE)
+    
+    # labortable
+    labortable <- labor_making(memory$analy.sheet, memory$labor.data)
+    laborsummary <- data.frame(
+      덕트공 = sum(as.numeric(labortable$덕트공), na.rm = T),
+      보통인부 = sum(as.numeric(labortable$보통인부), na.rm = T),
+      보온공 = sum(as.numeric(labortable$보온공), na.rm = T),
+      노무비_총합 = sum(as.numeric(labortable$덕트공), na.rm = T) * 168742 + sum(as.numeric(labortable$보통인부), na.rm = T) * 138290 + sum(as.numeric(labortable$보온공), na.rm = T) * 180707, 
+      실제_노무비_총합 = sum(as.numeric(memory$analy.sheet$노무비.단가) * as.numeric(memory$analy.sheet$수량), na.rm = T))
+    output$analy.labortable <- DT::renderDataTable(datatable(labortable))
+    output$analy.laborsummary <- DT::renderDataTable(datatable(laborsummary) %>% formatCurrency(c("노무비_총합", "실제_노무비_총합"), currency = ' ￦', interval = 3, mark = ',', digit = 0, before = FALSE))
+    
     enable("analy.download")
   })
   
@@ -981,8 +1063,7 @@ server <- function(input, output, session) {
     
     updatePickerInput(session = session, 
                       inputId = "graph.site1",
-                      choices = unique(tmp$현장),
-                      selected = unique(tmp$현장))
+                      choices = unique(tmp$현장))
   })
   
   observeEvent(c(input$graph.category1, input$graph.contract1, input$graph.site1), {
@@ -992,8 +1073,7 @@ server <- function(input, output, session) {
     
     updatePickerInput(session = session, 
                       inputId = "graph.coop1",
-                      choices = unique(tmp$협력사),
-                      selected = unique(tmp$협력사))
+                      choices = unique(tmp$협력사))
   })
   
   observeEvent(c(input$graph.category1, input$graph.contract1, input$graph.site1, input$graph.coop1), {
@@ -1004,8 +1084,7 @@ server <- function(input, output, session) {
     
     updatePickerInput(session = session, 
                       inputId = "graph.combi1",
-                      choices = unique(tmp$combi),
-                      selected = unique(tmp$combi))
+                      choices = unique(tmp$combi))
   })
   
   observeEvent(c(input$graph.category1, input$graph.contract1, input$graph.site1, input$graph.coop1, input$graph.combi1), {
@@ -1017,8 +1096,7 @@ server <- function(input, output, session) {
     
     updatePickerInput(session = session, 
                       inputId = "graph.contnum1",
-                      choices = unique(tmp$계약번호),
-                      selected = unique(tmp$계약번호))
+                      choices = unique(tmp$계약번호))
   })
   
   observeEvent(c(input$graph.category1, input$graph.contract1, input$graph.site1, input$graph.coop1, input$graph.combi1, input$graph.contnum1), {
@@ -1032,12 +1110,6 @@ server <- function(input, output, session) {
   })
   
   # outputs
-  observeEvent(memory$graph.data.selected1, {
-    output$graph.selected1 <- DT::renderDataTable(datatable(memory$graph.data.selected1 %>% 
-                                                              select(-combi, -label, -uniq.label)))
-    
-  })
-  
   output$graph.by.stand <- renderPlotly({
     
     bar <- plot_ly(memory$graph.data.selected1, x=~규격, y=~자재비.단가,
@@ -1071,7 +1143,6 @@ server <- function(input, output, session) {
     
   })
   
-  
   ### Second sub tab - 년도별 업체별 그래프
   # update inputs
   observeEvent(c(input$graph.category2, input$graph.contract2), {
@@ -1090,8 +1161,7 @@ server <- function(input, output, session) {
     
     updatePickerInput(session = session, 
                       inputId = "graph.site2",
-                      choices = unique(tmp$현장),
-                      selected = unique(tmp$현장))
+                      choices = unique(tmp$현장))
   })
   
   observeEvent(c(input$graph.category2, input$graph.contract2, input$graph.standard2, input$graph.site2), {
@@ -1102,8 +1172,7 @@ server <- function(input, output, session) {
     
     updatePickerInput(session = session, 
                       inputId = "graph.coop2",
-                      choices = unique(tmp$협력사),
-                      selected = unique(tmp$협력사))
+                      choices = unique(tmp$협력사))
   })
   
   observeEvent(c(input$graph.category2, input$graph.contract2, input$graph.standard2, input$graph.site2, input$graph.coop2), {
@@ -1115,12 +1184,6 @@ server <- function(input, output, session) {
   })
   
   # outputs
-  observeEvent(memory$graph.data.selected2, {
-    output$graph.selected2 <- DT::renderDataTable(datatable(memory$graph.data.selected2 %>% 
-                                                              select(-combi, -label, -uniq.label)))
-    
-  })
-  
   observeEvent(c(input$graph.category2, input$graph.contract2, input$graph.standard2, input$graph.site2, input$graph.coop2), {
     output$graph.by.year <- renderPlotly({
       
@@ -1137,6 +1200,7 @@ server <- function(input, output, session) {
       
     })
   })
+  
   
   #########################################################
   ### Log tab

@@ -380,7 +380,163 @@ match_table <- function(table, data){
   return(table)
 }
 
-# Add column for graph and select row
+labor_making <- function(sheet, data){
+  table <- NULL
+  # 덕트
+  tmp <- c('덕트')
+  if(nrow(sheet[sheet$대분류 %in% tmp, ])!=0){
+    table.tmp <- data.frame(mat.or.vec(nrow(sheet[sheet$대분류 %in% tmp, ]), 6))
+    table.tmp[,c(1:3)] <- sheet[sheet$대분류 %in% tmp, c(1,3,5)]
+    colnames(table.tmp) <- c('대분류', '규격', '수량', '덕트공', '보통인부', '보온공')
+    for(i in 1:nrow(data[[1]][[1]])){
+      table.tmp[table.tmp$규격 == gsub('㎜', 'T', data[[1]][[1]][i, 1]), colnames(data[[1]][[1]])[2]] <- table.tmp[table.tmp$규격 == gsub('㎜', 'T', data[[1]][[1]][i, 1]), colnames(data[[1]][[1]])[2]] + table.tmp[table.tmp$규격 == gsub('㎜', 'T', data[[1]][[1]][i, 1]), '수량'] * as.numeric(data[[1]][[1]][i, 2])
+      
+      table.tmp[table.tmp$규격 == gsub('㎜', 'T', data[[1]][[2]][i, 1]), colnames(data[[1]][[2]])[c(2, 3)]] <- table.tmp[table.tmp$규격 == gsub('㎜', 'T', data[[1]][[2]][i, 1]), colnames(data[[1]][[2]])[c(2, 3)]] + t(as.numeric(data[[1]][[2]][i, c(2, 3)]) * rbind(table.tmp[table.tmp$규격 == gsub('㎜', 'T', data[[1]][[2]][i, 1]), '수량'], table.tmp[table.tmp$규격 == gsub('㎜', 'T', data[[1]][[2]][i, 1]), '수량']))
+    }
+    table <- rbind(table, table.tmp)
+  }
+  
+  #스파이럴 덕트
+  tmp <- c('스파이럴덕트')
+  if(nrow(sheet[sheet$대분류 %in% tmp, ])!=0){
+    table.tmp <- data.frame(mat.or.vec(nrow(sheet[sheet$대분류 %in% tmp, ]), 6))
+    table.tmp[,c(1:3)] <- sheet[sheet$대분류 %in% tmp, c(1,3,5)]
+    colnames(table.tmp) <- c('대분류', '규격', '수량', '덕트공', '보통인부', '보온공')
+    for(i in 1:nrow(data[[1]][[3]])){
+      if(i != 1){
+        table.tmp[table.tmp$규격 == paste0(data[[1]][[3]][i, 2], 'A'), colnames(data[[1]][[3]])[c(3:4)]] <- table.tmp[table.tmp$규격 == paste0(data[[1]][[3]][i, 2], 'A'), colnames(data[[1]][[3]])[c(3:4)]] + t(as.numeric(data[[1]][[3]][i, c(3:4)]) * rbind(table.tmp[table.tmp$규격 == paste0(data[[1]][[3]][i, 2], 'A'), '수량'], table.tmp[table.tmp$규격 == paste0(data[[1]][[3]][i, 2], 'A'), '수량']))
+      } else {
+        table.tmp[which(as.numeric(gsub('A', '', table.tmp$규격)) < as.numeric(data[[1]][[3]][2, 2])), colnames(data[[1]][[3]])[c(3:4)]] <- table.tmp[which(as.numeric(gsub('A', '', table.tmp$규격)) < as.numeric(data[[1]][[3]][2, 2])), colnames(data[[1]][[3]])[c(3:4)]] + t(as.numeric(data[[1]][[3]][i, c(3:4)]) * rbind(table.tmp[which(as.numeric(gsub('A', '', table.tmp$규격)) < as.numeric(data[[1]][[3]][2, 2])), '수량'], table.tmp[which(as.numeric(gsub('A', '', table.tmp$규격)) < as.numeric(data[[1]][[3]][2, 2])), '수량']))
+      }
+    }
+    table <- rbind(table, table.tmp)
+  }
+  
+  # 스테인리스 덕트
+  tmp <- 'STS_덕트'
+  if(nrow(sheet[sheet$대분류 %in% tmp, ])!=0){
+    table.tmp <- data.frame(mat.or.vec(nrow(sheet[sheet$대분류 %in% tmp, ]), 6))
+    table.tmp[,c(1:3)] <- sheet[sheet$대분류 %in% tmp, c(1,3,5)]
+    colnames(table.tmp) <- c('대분류', '규격', '수량', '덕트공', '보통인부', '보온공')
+    for(i in 1:nrow(data[[1]][[4]])){
+      table.tmp[table.tmp$규격 == gsub('㎜', 'T', data[[1]][[4]][i, 1]), colnames(data[[1]][[4]])[2]] <- table.tmp[table.tmp$규격 == gsub('㎜', 'T', data[[1]][[4]][i, 1]), colnames(data[[1]][[4]])[2]] + table.tmp[table.tmp$규격 == gsub('㎜', 'T', data[[1]][[4]][i, 1]), '수량'] * as.numeric(data[[1]][[4]][i, 2])
+      
+      table.tmp[table.tmp$규격 == gsub('㎜', 'T', data[[1]][[5]][i, 1]), colnames(data[[1]][[5]])[2]] <- table.tmp[table.tmp$규격 == gsub('㎜', 'T', data[[1]][[5]][i, 1]), colnames(data[[1]][[5]])[2]] + t(as.numeric(data[[1]][[5]][i, c(2, 3)]) * rbind(table.tmp[table.tmp$규격 == gsub('㎜', 'T', data[[1]][[5]][i, 1]), '수량'], table.tmp[table.tmp$규격 == gsub('㎜', 'T', data[[1]][[5]][i, 1]), '수량']))
+    }
+    table <- rbind(table, table.tmp)
+  }
+  
+  
+  # PVC 덕트
+  # sheet[sheet$대분류 == 'PVC_덕트', ]
+  
+  #플렉시블 덕트
+  tmp <- c('후렉시블호스')
+  if(nrow(sheet[sheet$대분류 %in% tmp, ])!=0){
+    table.tmp <- data.frame(mat.or.vec(nrow(sheet[sheet$대분류 %in% tmp, ]), 6))
+    table.tmp[,c(1:3)] <- sheet[sheet$대분류 %in% tmp, c(1,3,5)]
+    colnames(table.tmp) <- c('대분류', '규격', '수량', '덕트공', '보통인부', '보온공')
+    for(i in 1:nrow(data[[1]][[8]])){
+      table.tmp[gsub('\\D','', table.tmp$규격) == gsub('\\D','', data[[1]][[8]]$규격)[i], colnames(data[[1]][[8]])[3]] <- table.tmp[gsub('\\D','', table.tmp$규격) == gsub('\\D','', data[[1]][[8]]$규격)[i], colnames(data[[1]][[8]])[3]] + table.tmp[gsub('\\D','', table.tmp$규격) == gsub('\\D','', data[[1]][[8]]$규격)[i], '수량'] * as.numeric(data[[1]][[8]][i, 3])
+    }
+    table <- rbind(table, table.tmp)
+  }
+  
+  # 덕트 취출구
+  tmp <- c('DIFFUSER', 'STS_DIFFUSER')
+  if(nrow(sheet[sheet$대분류 %in% tmp, ])!=0){
+    table.tmp <- data.frame(mat.or.vec(nrow(sheet[sheet$대분류 %in% tmp, ]), 6))
+    table.tmp[,c(1:3)] <- sheet[sheet$대분류 %in% tmp, c(1,3,5)]
+    colnames(table.tmp) <- c('대분류', '규격', '수량', '덕트공', '보통인부', '보온공')
+    for(i in 1:6){
+      if(i == 1){
+        tmptmp <- which(as.numeric(gsub('A','', table.tmp$규격)) <= as.numeric(gsub('\\D','', data[[1]][[9]][i, 3])))
+      } else {
+        tmptmp <- which(as.numeric(gsub('A','', table.tmp$규격)) <= as.numeric(gsub('\\D','', data[[1]][[9]][i, 3])) & as.numeric(gsub('A','', table.tmp$규격)) > as.numeric(gsub('\\D','', data[[1]][[9]][(i-1), 3])))
+      } 
+      table.tmp[tmptmp, colnames(data[[1]][[9]])[4]] <- table.tmp[tmptmp, colnames(data[[1]][[9]])[4]] + table.tmp[tmptmp, '수량'] * as.numeric(data[[1]][[9]][i, 4])
+    }
+    table <- rbind(table, table.tmp)
+  }
+  
+  
+  # 흡입구 설치 - 그릴
+  tmp <- c('REGISTER', 'STS_REGISTER', 'GRILLE')
+  if(nrow(sheet[sheet$대분류 %in% tmp, ])!=0){
+    table.tmp <- data.frame(mat.or.vec(nrow(sheet[sheet$대분류 %in% tmp, ]), 6))
+    table.tmp[,c(1:3)] <- sheet[sheet$대분류 %in% tmp, c(1,3,5)]
+    colnames(table.tmp) <- c('대분류', '규격', '수량', '덕트공', '보통인부', '보온공')
+    for(i in 1:length(table.tmp$규격)){
+      tmptmp <- if(max(as.numeric(strsplit(table.tmp$규격[i],split="[\\*]")[[1]])) < 1000) as.numeric(data[[1]][[10]][1, 4]) else as.numeric(data[[1]][[10]][2, 4])
+      table.tmp[i, colnames(data[[1]][[10]])[4]] <- table.tmp[i, colnames(data[[1]][[10]])[4]] + table.tmp[i, '수량'] * tmptmp
+    }
+    table <- rbind(table, table.tmp)
+  }
+  
+  
+  # 흡입구 설치 - 점검구
+  tmp <- c('점검구')
+  if(nrow(sheet[sheet$대분류 %in% tmp, ])!=0){
+    table.tmp <- data.frame(mat.or.vec(nrow(sheet[sheet$대분류 %in% tmp, ]), 6))
+    table.tmp[,c(1:3)] <- sheet[sheet$대분류 %in% tmp, c(1,3,5)]
+    colnames(table.tmp) <- c('대분류', '규격', '수량', '덕트공', '보통인부', '보온공')
+    for(i in 1:length(table.tmp$규격)){
+      table.tmp[i, colnames(data[[1]][[10]])[4]] <- table.tmp[i, colnames(data[[1]][[10]])[4]] + table.tmp[i, '수량'] * as.numeric(data[[1]][[10]][3, 4])
+    }
+    table <- rbind(table, table.tmp)
+  }
+  
+  
+  # 댐퍼 설치 - 방화 댐퍼
+  tmp <- c('F.D', 'F.V.D', 'STS_F.D', 'STS_F.V.D')
+  if(nrow(sheet[sheet$대분류 %in% tmp, ])!=0){
+    table.tmp <- data.frame(mat.or.vec(nrow(sheet[sheet$대분류 %in% tmp, ]), 6))
+    table.tmp[,c(1:3)] <- sheet[sheet$대분류 %in% tmp, c(1,3,5)]
+    colnames(table.tmp) <- c('대분류', '규격', '수량', '덕트공', '보통인부', '보온공')
+    for(i in 1:length(table.tmp$규격)){
+      if(grepl('A', table.tmp$규격[i])){
+        tmptmp <- pi*(as.numeric(gsub('A','', table.tmp$규격[i]))/2)^2 / 1000000
+      } else {
+        tmptmp <- as.numeric(strsplit(table.tmp$규격[i],split="[\\*]")[[1]])[1] * as.numeric(strsplit(table.tmp$규격[i],split="[\\*]")[[1]])[2] / 1000000
+      }
+      if(tmptmp <= 0.1){
+        table.tmp[i, colnames(data[[1]][[12]])[3]] <- table.tmp[i, colnames(data[[1]][[12]])[3]] + table.tmp[i, '수량'] * as.numeric(data[[1]][[12]][1, 3])
+      } else {
+        table.tmp[i, colnames(data[[1]][[12]])[3]] <- table.tmp[i, colnames(data[[1]][[12]])[3]] + table.tmp[i, '수량'] * (as.numeric(data[[1]][[12]][1, 3]) + floor(tmptmp/0.1 - 1) * as.numeric(data[[1]][[12]][2, 3]))
+      }
+    }
+    table <- rbind(table, table.tmp)
+  }
+  
+  # 댐퍼설치 - 풍량조절 댐퍼
+  tmp <- c('V.D', 'STS_P.R.D', 'STS_V.D', 'M.D', 'B.D.D', 'STS_B.D.D', 'M.V.D', 'STS_M.V.D', 'P.R.D')
+  if(nrow(sheet[sheet$대분류 %in% tmp, ])!=0){
+    table.tmp <- data.frame(mat.or.vec(nrow(sheet[sheet$대분류 %in% tmp, ]), 6))
+    table.tmp[,c(1:3)] <- sheet[sheet$대분류 %in% tmp, c(1,3,5)]
+    colnames(table.tmp) <- c('대분류', '규격', '수량', '덕트공', '보통인부', '보온공')
+    for(i in 1:length(table.tmp$규격)){
+      if(grepl('A', table.tmp$규격[i])){
+        tmptmp <- pi*(as.numeric(gsub('A','', table.tmp$규격[i]))/2)^2 / 1000000
+      } else {
+        tmptmp <- as.numeric(strsplit(table.tmp$규격[i],split="[\\*]")[[1]])[1] * as.numeric(strsplit(table.tmp$규격[i],split="[\\*]")[[1]])[2] / 1000000
+      }
+      if(tmptmp <= 0.1){
+        table.tmp[i, colnames(data[[1]][[12]])[3]] <- table.tmp[i, colnames(data[[1]][[12]])[3]] + table.tmp[i, '수량'] * as.numeric(data[[1]][[12]][3, 3])
+      } else {
+        table.tmp[i, colnames(data[[1]][[12]])[3]] <- table.tmp[i, colnames(data[[1]][[12]])[3]] + table.tmp[i, '수량'] * (as.numeric(data[[1]][[12]][3, 3]) + floor(tmptmp/0.1 - 1) * as.numeric(data[[1]][[12]][4, 3]))
+      }
+    }
+    table <- rbind(table, table.tmp)
+  }
+  
+  #각형 덕트 보온
+  
+  #원형 덕트 보온
+  
+  
+  return(table)
+}
+
 # Add column for graph and select row
 make_graphdata <- function(data) {
   return(unique(data 
