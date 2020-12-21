@@ -68,7 +68,7 @@ ui <- dashboardPage(
       menuItem("분석 그래프", tabName = "graph",  icon = icon("list")), 
       menuItem("사용자 로그", tabName = "log",    icon = icon("list"))
     ), 
-    tags$footer("ver 4.3.0", align = "right", style = "font-size: 15px; position:absolute; bottom:0; width:100%; padding:10px")
+    tags$footer("ver 4.4.0", align = "right", style = "font-size: 15px; position:absolute; bottom:0; width:100%; padding:10px")
   ), 
   
   #########################################################
@@ -478,12 +478,15 @@ server <- function(input, output, session) {
       labortable <- labor_making(memory$search.table, memory$labor.data)
       laborsummary <- data.frame(
         덕트공 = sum(as.numeric(labortable$덕트공), na.rm = T),
+        덕트공_노무비 = sum(as.numeric(labortable$덕트공), na.rm = T) * 168742,
         보통인부 = sum(as.numeric(labortable$보통인부), na.rm = T),
+        보통인부_노무비 = sum(as.numeric(labortable$보통인부), na.rm = T) * 138290,
         보온공 = sum(as.numeric(labortable$보온공), na.rm = T),
-        노무비_총합 = sum(as.numeric(labortable$덕트공), na.rm = T) * 168742 + sum(as.numeric(labortable$보통인부), na.rm = T) * 138290 + sum(as.numeric(labortable$보온공), na.rm = T) * 180707, 
+        보온공_노무비 = sum(as.numeric(labortable$보온공), na.rm = T) * 180707,
+        품셈_노무비합 = sum(as.numeric(labortable$덕트공), na.rm = T) * 168742 + sum(as.numeric(labortable$보통인부), na.rm = T) * 138290 + sum(as.numeric(labortable$보온공), na.rm = T) * 180707, 
         실제_노무비_총합 = sum(as.numeric(memory$search.table$노무비.단가) * as.numeric(memory$search.table$수량), na.rm = T))
       output$search.labortable <- DT::renderDataTable(datatable(labortable))
-      output$search.laborsummary <- DT::renderDataTable(datatable(laborsummary) %>% formatCurrency(c("노무비_총합", "실제_노무비_총합"), currency = ' ￦', interval = 3, mark = ',', digit = 0, before = FALSE))  
+      output$search.laborsummary <- DT::renderDataTable(datatable(laborsummary) %>% formatCurrency(c("덕트공_노무비", "보통인부_노무비", "보온공_노무비", "품셈_노무비합", "실제_노무비_총합"), currency = ' ￦', interval = 3, mark = ',', digit = 0, before = FALSE))  
       
     }
   })
@@ -505,12 +508,15 @@ server <- function(input, output, session) {
       labortable <- labor_making(memory$search.table, memory$labor.data)
       laborsummary <- data.frame(
         덕트공 = sum(as.numeric(labortable$덕트공), na.rm = T),
+        덕트공_노무비 = sum(as.numeric(labortable$덕트공), na.rm = T) * 168742,
         보통인부 = sum(as.numeric(labortable$보통인부), na.rm = T),
+        보통인부_노무비 = sum(as.numeric(labortable$보통인부), na.rm = T) * 138290,
         보온공 = sum(as.numeric(labortable$보온공), na.rm = T),
-        노무비_총합 = sum(as.numeric(labortable$덕트공), na.rm = T) * 168742 + sum(as.numeric(labortable$보통인부), na.rm = T) * 138290 + sum(as.numeric(labortable$보온공), na.rm = T) * 180707, 
+        보온공_노무비 = sum(as.numeric(labortable$보온공), na.rm = T) * 180707,
+        품셈_노무비합 = sum(as.numeric(labortable$덕트공), na.rm = T) * 168742 + sum(as.numeric(labortable$보통인부), na.rm = T) * 138290 + sum(as.numeric(labortable$보온공), na.rm = T) * 180707, 
         실제_노무비_총합 = sum(as.numeric(memory$search.table$노무비.단가) * as.numeric(memory$search.table$수량), na.rm = T))
       output$search.labortable <- DT::renderDataTable(datatable(labortable))
-      output$search.laborsummary <- DT::renderDataTable(datatable(laborsummary) %>% formatCurrency(c("노무비_총합", "실제_노무비_총합"), currency = ' ￦', interval = 3, mark = ',', digit = 0, before = FALSE))  
+      output$search.laborsummary <- DT::renderDataTable(datatable(laborsummary) %>% formatCurrency(c("덕트공_노무비", "보통인부_노무비", "보온공_노무비", "품셈_노무비합", "실제_노무비_총합"), currency = ' ￦', interval = 3, mark = ',', digit = 0, before = FALSE))
       
     } else {
       output$search.labortable <-NULL
@@ -722,12 +728,15 @@ server <- function(input, output, session) {
       labortable <- labor_making(memory$search.table, memory$labor.data)
       laborsummary <- data.frame(
         덕트공 = sum(as.numeric(labortable$덕트공), na.rm = T),
+        덕트공_노무비 = sum(as.numeric(labortable$덕트공), na.rm = T) * 168742,
         보통인부 = sum(as.numeric(labortable$보통인부), na.rm = T),
+        보통인부_노무비 = sum(as.numeric(labortable$보통인부), na.rm = T) * 138290,
         보온공 = sum(as.numeric(labortable$보온공), na.rm = T),
-        노무비_총합 = sum(as.numeric(labortable$덕트공), na.rm = T) * 168742 + sum(as.numeric(labortable$보통인부), na.rm = T) * 138290 + sum(as.numeric(labortable$보온공), na.rm = T) * 180707, 
+        보온공_노무비 = sum(as.numeric(labortable$보온공), na.rm = T) * 180707,
+        품셈_노무비합 = sum(as.numeric(labortable$덕트공), na.rm = T) * 168742 + sum(as.numeric(labortable$보통인부), na.rm = T) * 138290 + sum(as.numeric(labortable$보온공), na.rm = T) * 180707, 
         실제_노무비_총합 = sum(as.numeric(memory$search.table$노무비.단가) * as.numeric(memory$search.table$수량), na.rm = T))
       output$search.labortable <- DT::renderDataTable(datatable(labortable))
-      output$search.laborsummary <- DT::renderDataTable(datatable(laborsummary) %>% formatCurrency(c("노무비_총합", "실제_노무비_총합"), currency = ' ￦', interval = 3, mark = ',', digit = 0, before = FALSE))  
+      output$search.laborsummary <- DT::renderDataTable(datatable(laborsummary) %>% formatCurrency(c("덕트공_노무비", "보통인부_노무비", "보온공_노무비", "품셈_노무비합", "실제_노무비_총합"), currency = ' ￦', interval = 3, mark = ',', digit = 0, before = FALSE))  
       
     } else {
       memory$search.laborswitch <- F
@@ -852,7 +861,7 @@ server <- function(input, output, session) {
   # Download example sheet
   anly.example <- load_data("anly.example")
   output$anly.example <- downloadHandler(filename = paste0("2019-5-1808_동우화인켐 평택_세현이엔지_계약", ".xlsx"), 
-                                          content = function(file) write.xlsx2(anly.example, file, row.names = FALSE))
+                                         content = function(file) write.xlsx2(anly.example, file, row.names = FALSE))
   
   # Analyze
   observeEvent(input$anly.sheet, {
@@ -863,36 +872,38 @@ server <- function(input, output, session) {
     
     # Make analytics using previous contract data
     memory$anly.stat <- make_stat(memory$anly.sheet, search.data[[search.default]], 
-                                   options = list(sign = input$anly.sign, year = input$anly.year, site = input$anly.site, coop = input$anly.coop), Download = FALSE)
+                                  options = list(sign = input$anly.sign, year = input$anly.year, site = input$anly.site, coop = input$anly.coop), Download = FALSE)
     rownames(memory$anly.stat) <- as.numeric(1:nrow(memory$anly.stat))
     
     # Render stat
     output$anly.stat <- DT::renderDataTable(datatable(isolate(memory$anly.stat), extensions = "FixedHeader", 
-                                                       editable = list(target = "cell", disable = list(columns = c(0, 4:9))), escape = FALSE,
-                                                       options = list(fixedHeader = TRUE, lengthMenu = list(c(10, 25, 50, 100, -1), c("10", "25", "50", "100", "전체")), 
-                                                                      pageLength = -1, columnDefs = list(list(targets = 9, visible = FALSE))), colnames = c('번호' = 1))
-                                             %>% (function (dt) {dt$x$data[[1]] <- as.numeric(dt$x$data[[1]]); return(dt)})
-                                             %>% formatCurrency(c("자재비.단가", "가격차이"), currency = " ￦", interval = 3, mark = ",", digit = 0, before = FALSE)
-                                             %>% formatStyle(columns = "자재비.단가", valueColumns = "가격차이", color = JS("value < 0 ? 'blue' : (value > 0 ? 'red' : 'green')")))
+                                                      editable = list(target = "cell", disable = list(columns = c(0, 4:9))), escape = FALSE,
+                                                      options = list(fixedHeader = TRUE, lengthMenu = list(c(10, 25, 50, 100, -1), c("10", "25", "50", "100", "전체")), 
+                                                                     pageLength = -1, columnDefs = list(list(targets = 9, visible = FALSE))), colnames = c('번호' = 1))
+                                            %>% (function (dt) {dt$x$data[[1]] <- as.numeric(dt$x$data[[1]]); return(dt)})
+                                            %>% formatCurrency(c("자재비.단가", "가격차이"), currency = " ￦", interval = 3, mark = ",", digit = 0, before = FALSE)
+                                            %>% formatStyle(columns = "자재비.단가", valueColumns = "가격차이", color = JS("value < 0 ? 'blue' : (value > 0 ? 'red' : 'green')")))
     memory$anly.stat.proxy <- dataTableProxy("anly.stat")
     
     # labortable
     labortable <- labor_making(memory$anly.sheet, memory$labor.data)
     laborsummary <- data.frame(
       덕트공 = sum(as.numeric(labortable$덕트공), na.rm = T),
+      덕트공_노무비 = sum(as.numeric(labortable$덕트공), na.rm = T) * 168742,
       보통인부 = sum(as.numeric(labortable$보통인부), na.rm = T),
+      보통인부_노무비 = sum(as.numeric(labortable$보통인부), na.rm = T) * 138290,
       보온공 = sum(as.numeric(labortable$보온공), na.rm = T),
-      노무비_총합 = sum(as.numeric(labortable$덕트공), na.rm = T) * 168742 + sum(as.numeric(labortable$보통인부), na.rm = T) * 138290 + sum(as.numeric(labortable$보온공), na.rm = T) * 180707, 
-      실제_노무비_총합 = sum(as.numeric(memory$anly.sheet$노무비.단가) * as.numeric(memory$anly.sheet$수량), na.rm = T))
+      보온공_노무비 = sum(as.numeric(labortable$보온공), na.rm = T) * 180707,
+      품셈_노무비합 = sum(as.numeric(labortable$덕트공), na.rm = T) * 168742 + sum(as.numeric(labortable$보통인부), na.rm = T) * 138290 + sum(as.numeric(labortable$보온공), na.rm = T) * 180707, 
+      실제_노무비_총합 = sum(as.numeric(memory$search.table$노무비.단가) * as.numeric(memory$search.table$수량), na.rm = T))
     output$anly.labortable <- DT::renderDataTable(datatable(labortable))
-    output$anly.laborsummary <- DT::renderDataTable(datatable(laborsummary) %>% formatCurrency(c("노무비_총합", "실제_노무비_총합"), currency = ' ￦', interval = 3, mark = ',', digit = 0, before = FALSE))  
-    
+    output$anly.laborsummary <- DT::renderDataTable(datatable(laborsummary) %>% formatCurrency(c("덕트공_노무비", "보통인부_노무비", "보온공_노무비", "품셈_노무비합", "실제_노무비_총합"), currency = ' ￦', interval = 3, mark = ',', digit = 0, before = FALSE))  
     
     # Download stat
     output$anly.download <- downloadHandler(filename = paste0(input$anly.sheet$name, "_분석", ".xlsx"), 
-                                             content = function(file) write.xlsx2(make_stat(memory$anly.sheet, search.data[[search.default]], 
-                                                                                            options = list(sign = input$anly.sign, year = input$anly.year, site = input$anly.site, coop = input$anly.coop), Download = TRUE), 
-                                                                                  file, row.names = FALSE))
+                                            content = function(file) write.xlsx2(make_stat(memory$anly.sheet, search.data[[search.default]], 
+                                                                                           options = list(sign = input$anly.sign, year = input$anly.year, site = input$anly.site, coop = input$anly.coop), Download = TRUE), 
+                                                                                 file, row.names = FALSE))
     enable("anly.download")
   })
   
@@ -903,16 +914,16 @@ server <- function(input, output, session) {
       
       # Make analytics using previous contract data
       memory$anly.stat <- make_stat(memory$anly.sheet, search.data[[search.default]], 
-                                     options = list(sign = input$anly.sign, year = input$anly.year, site = input$anly.site, coop = input$anly.coop), Download = FALSE)
+                                    options = list(sign = input$anly.sign, year = input$anly.year, site = input$anly.site, coop = input$anly.coop), Download = FALSE)
       
       # Reload stat
       replaceData(memory$anly.stat.proxy, memory$anly.stat, resetPaging = FALSE)
       
       # Download stat
       output$anly.download <- downloadHandler(filename = paste0("기계약_분석", ".xlsx"), 
-                                               content = function(file) write.xlsx2(make_stat(memory$anly.sheet, search.data[[search.default]], 
-                                                                                              options = list(sign = input$anly.sign, year = input$anly.year, site = input$anly.site, coop = input$anly.coop)), 
-                                                                                    file, row.names = FALSE))
+                                              content = function(file) write.xlsx2(make_stat(memory$anly.sheet, search.data[[search.default]], 
+                                                                                             options = list(sign = input$anly.sign, year = input$anly.year, site = input$anly.site, coop = input$anly.coop)), 
+                                                                                   file, row.names = FALSE))
       enable("anly.download")
     }
   })
@@ -940,21 +951,25 @@ server <- function(input, output, session) {
     # Reload stat
     if (anly.edited$col == 2)
       memory$anly.sheet[anly.edited$row, ] <- match_class(memory$anly.sheet[anly.edited$row, -c(1)], search.data[[search.default]], 
-                                                            options = list(sign = input$anly.sign, year = input$anly.year, site = input$anly.site, coop = input$anly.coop))
+                                                          options = list(sign = input$anly.sign, year = input$anly.year, site = input$anly.site, coop = input$anly.coop))
     memory$anly.stat[anly.edited$row, ] <- make_stat(memory$anly.sheet[anly.edited$row, ], search.data[[search.default]], 
-                                                       options = list(sign = input$anly.sign, year = input$anly.year, site = input$anly.site, coop = input$anly.coop), Download = FALSE)
+                                                     options = list(sign = input$anly.sign, year = input$anly.year, site = input$anly.site, coop = input$anly.coop), Download = FALSE)
     replaceData(memory$anly.stat.proxy, memory$anly.stat, resetPaging = FALSE)
     
     # labortable
     labortable <- labor_making(memory$anly.sheet, memory$labor.data)
     laborsummary <- data.frame(
       덕트공 = sum(as.numeric(labortable$덕트공), na.rm = T),
+      덕트공_노무비 = sum(as.numeric(labortable$덕트공), na.rm = T) * 168742,
       보통인부 = sum(as.numeric(labortable$보통인부), na.rm = T),
+      보통인부_노무비 = sum(as.numeric(labortable$보통인부), na.rm = T) * 138290,
       보온공 = sum(as.numeric(labortable$보온공), na.rm = T),
-      노무비_총합 = sum(as.numeric(labortable$덕트공), na.rm = T) * 168742 + sum(as.numeric(labortable$보통인부), na.rm = T) * 138290 + sum(as.numeric(labortable$보온공), na.rm = T) * 180707, 
-      실제_노무비_총합 = sum(as.numeric(memory$anly.sheet$노무비.단가) * as.numeric(memory$anly.sheet$수량), na.rm = T))
+      보온공_노무비 = sum(as.numeric(labortable$보온공), na.rm = T) * 180707,
+      품셈_노무비합 = sum(as.numeric(labortable$덕트공), na.rm = T) * 168742 + sum(as.numeric(labortable$보통인부), na.rm = T) * 138290 + sum(as.numeric(labortable$보온공), na.rm = T) * 180707, 
+      실제_노무비_총합 = sum(as.numeric(memory$search.table$노무비.단가) * as.numeric(memory$search.table$수량), na.rm = T))
     output$anly.labortable <- DT::renderDataTable(datatable(labortable))
-    output$anly.laborsummary <- DT::renderDataTable(datatable(laborsummary) %>% formatCurrency(c("노무비_총합", "실제_노무비_총합"), currency = ' ￦', interval = 3, mark = ',', digit = 0, before = FALSE))
+    output$anly.laborsummary <-     output$anly.laborsummary <- DT::renderDataTable(datatable(laborsummary) %>% formatCurrency(c("덕트공_노무비", "보통인부_노무비", "보온공_노무비", "품셈_노무비합", "실제_노무비_총합"), currency = ' ￦', interval = 3, mark = ',', digit = 0, before = FALSE))  
+    
     
     enable("anly.download")
   })
